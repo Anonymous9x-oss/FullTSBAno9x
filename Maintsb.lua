@@ -1,5 +1,5 @@
 --[[
-    Anonymous9x TSB Strong  v5.1
+    Anonymous9x TSB Strong  v5.0
     The Strongest Battlegrounds
     By Anonymous9x
     website : https://anonymous9x-site.pages.dev/
@@ -8,7 +8,6 @@
     All executors  |  PC + Mobile + Touch + Mouse
     Monochrome UI  |  Loading  |  FPS/Ping Status
     Float-icon minimize  |  Zero cursor bugs
-    FIXED: drag on mobile, logo loading, status bar layout
 ]]
 
 -- ══════════════════════════════════════════════
@@ -91,14 +90,12 @@ local function allEnemies()
     end
     return t
 end
-
--- dynamic player list for dropdown
-local function getPlayerNames()
-    local names = {"None"}
+local function playerNames()
+    local n = {"None"}
     for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= LP then names[#names+1] = p.Name end
+        if p ~= LP then n[#n+1] = p.Name end
     end
-    return names
+    return n
 end
 
 -- ══════════════════════════════════════════════
@@ -301,23 +298,20 @@ local lcIconI = Instance.new("ImageLabel")
 lcIconI.Size               = UDim2.fromOffset(44, 44)
 lcIconI.Position           = UDim2.fromOffset(2, 2)
 lcIconI.BackgroundTransparency = 1
-lcIconI.Image              = "rbxasset://textures/ui/GuiImagePlaceholder.png"
+lcIconI.Image              = ""
 lcIconI.ZIndex             = 5003
 lcIconI.Parent             = lcIconF
 Instance.new("UICorner", lcIconI).CornerRadius = UDim.new(0, 8)
 
--- fallback to local avatar or placeholder
 task.spawn(function()
     pcall(function()
-        local img = Players:GetUserThumbnailAsync(97269958324726, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size150x150)
-        if img and img ~= "" then lcIconI.Image = img end
+        local img = Players:GetUserThumbnailAsync(
+            97269958324726,
+            Enum.ThumbnailType.HeadShot,
+            Enum.ThumbnailSize.Size150x150
+        )
+        lcIconI.Image = img
     end)
-    if lcIconI.Image == "rbxasset://textures/ui/GuiImagePlaceholder.png" then
-        pcall(function()
-            local img = Players:GetUserThumbnailAsync(LP.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size150x150)
-            if img and img ~= "" then lcIconI.Image = img end
-        end)
-    end
 end)
 
 local function makeLbl(parent, txt, y, size, color, zIdx)
@@ -337,7 +331,7 @@ end
 
 local lcTitle = makeLbl(loadCard, "Anonymous9x TSB Strong", 70, 12, K.textPri, 5002)
 local lcSub   = makeLbl(loadCard, "Initializing...", 88, 9,  K.textSec, 5002)
-local lcVer   = makeLbl(loadCard, "v5.1  |  By Anonymous9x", 130, 8, K.textDim, 5002)
+local lcVer   = makeLbl(loadCard, "v5.0 Beta  |  By Anonymous9x", 130, 8, K.textDim, 5002)
 
 -- Progress track
 local lcTrack = Instance.new("Frame")
@@ -411,7 +405,7 @@ local winS = Instance.new("UIStroke", win)
 winS.Color = K.border; winS.Thickness = 1
 
 -- ══════════════════════════════════════════════
--- TITLE BAR (draggable for all devices)
+-- TITLE BAR
 -- ══════════════════════════════════════════════
 local titlebar = Instance.new("Frame")
 titlebar.Name               = "TB"
@@ -442,7 +436,7 @@ tbSep.BorderSizePixel  = 0
 tbSep.ZIndex           = 203
 tbSep.Parent           = titlebar
 
--- Logo icon frame (fallback to local avatar)
+-- Logo icon frame
 local logoF = Instance.new("Frame")
 logoF.Size             = UDim2.fromOffset(24, 24)
 logoF.Position         = UDim2.new(0, 9, 0.5, -12)
@@ -458,22 +452,20 @@ local logoI = Instance.new("ImageLabel")
 logoI.Size               = UDim2.fromOffset(20, 20)
 logoI.Position           = UDim2.fromOffset(2, 2)
 logoI.BackgroundTransparency = 1
-logoI.Image              = "rbxasset://textures/ui/GuiImagePlaceholder.png"
+logoI.Image              = ""
 logoI.ZIndex             = 205
 logoI.Parent             = logoF
 Instance.new("UICorner", logoI).CornerRadius = UDim.new(0, 5)
 
 task.spawn(function()
     pcall(function()
-        local img = Players:GetUserThumbnailAsync(97269958324726, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size150x150)
-        if img and img ~= "" then logoI.Image = img end
+        local img = Players:GetUserThumbnailAsync(
+            97269958324726,
+            Enum.ThumbnailType.HeadShot,
+            Enum.ThumbnailSize.Size150x150
+        )
+        logoI.Image = img
     end)
-    if logoI.Image == "rbxasset://textures/ui/GuiImagePlaceholder.png" then
-        pcall(function()
-            local img = Players:GetUserThumbnailAsync(LP.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size150x150)
-            if img and img ~= "" then logoI.Image = img end
-        end)
-    end
 end)
 
 -- Title label
@@ -504,7 +496,7 @@ verS.Color = K.borderHi; verS.Thickness = 1
 local verL = Instance.new("TextLabel")
 verL.Size               = UDim2.fromScale(1, 1)
 verL.BackgroundTransparency = 1
-verL.Text               = "v5.1"
+verL.Text               = "v5.0"
 verL.Font               = Enum.Font.GothamBold
 verL.TextSize           = 8
 verL.TextColor3         = K.textSec
@@ -560,57 +552,6 @@ for _, b in ipairs({minBtn, closeBtn}) do
         }):Play()
     end)
 end
-
--- ══════════════════════════════════════════════
--- DRAG HANDLER (works on PC & mobile)
--- ══════════════════════════════════════════════
-local dragActive = false
-local dragStartPos, dragStartWinPos
-
-local function isOverControlButtons(x, y)
-    local absX = x
-    local absY = y
-    local minAbs = minBtn.AbsolutePosition
-    local closeAbs = closeBtn.AbsolutePosition
-    if minAbs and absX >= minAbs.X and absX <= minAbs.X + minBtn.AbsoluteSize.X and
-       absY >= minAbs.Y and absY <= minAbs.Y + minBtn.AbsoluteSize.Y then
-        return true
-    end
-    if closeAbs and absX >= closeAbs.X and absX <= closeAbs.X + closeBtn.AbsoluteSize.X and
-       absY >= closeAbs.Y and absY <= closeAbs.Y + closeBtn.AbsoluteSize.Y then
-        return true
-    end
-    return false
-end
-
-titlebar.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or
-       input.UserInputType == Enum.UserInputType.Touch then
-        local pos = input.Position
-        if isOverControlButtons(pos.X, pos.Y) then return end
-        dragActive = true
-        dragStartPos = Vector2.new(pos.X, pos.Y)
-        dragStartWinPos = Vector2.new(win.AbsolutePosition.X, win.AbsolutePosition.Y)
-    end
-end)
-
-UIS.InputChanged:Connect(function(input)
-    if not dragActive then return end
-    if input.UserInputType == Enum.UserInputType.MouseMovement or
-       input.UserInputType == Enum.UserInputType.Touch then
-        local delta = Vector2.new(input.Position.X, input.Position.Y) - dragStartPos
-        local newX = math.clamp(dragStartWinPos.X + delta.X, 0, Cam.ViewportSize.X - WIN_W)
-        local newY = math.clamp(dragStartWinPos.Y + delta.Y, 0, Cam.ViewportSize.Y - WIN_H)
-        win.Position = UDim2.fromOffset(newX, newY)
-    end
-end)
-
-UIS.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or
-       input.UserInputType == Enum.UserInputType.Touch then
-        dragActive = false
-    end
-end)
 
 -- ══════════════════════════════════════════════
 -- STATUS BAR  (FPS  Ping  Version  Free)
@@ -718,7 +659,7 @@ local function makeSbStatic(txt, order)
     vs.Parent           = f
 end
 
-makeSbStatic("v5.1 Beta", 3)
+makeSbStatic("v5.0 Beta", 3)
 makeSbStatic("FREE",      4)
 
 -- Real-time FPS / Ping
@@ -794,15 +735,19 @@ avImg.Size               = UDim2.fromOffset(38, 38)
 avImg.Position           = UDim2.fromOffset(2, 2)
 avImg.BackgroundColor3   = K.card
 avImg.BackgroundTransparency = 0
-avImg.Image              = "rbxasset://textures/ui/GuiImagePlaceholder.png"
+avImg.Image              = ""
 avImg.ZIndex             = 205
 avImg.Parent             = avRing
 Instance.new("UICorner", avImg).CornerRadius = UDim.new(1, 0)
 
 task.spawn(function()
     pcall(function()
-        local img = Players:GetUserThumbnailAsync(LP.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size150x150)
-        if img and img ~= "" then avImg.Image = img end
+        local img = Players:GetUserThumbnailAsync(
+            LP.UserId,
+            Enum.ThumbnailType.HeadShot,
+            Enum.ThumbnailSize.Size150x150
+        )
+        avImg.Image = img
     end)
 end)
 
@@ -870,6 +815,7 @@ local tabBtns   = {}
 local tabPanels = {}
 local activeTab = "AutoKill"
 
+-- Forward declare for the header update
 local cHeaderLbl
 
 local function setActive(id)
@@ -910,8 +856,8 @@ for i, def in ipairs(TAB_DEFS) do
     btn.TextColor3         = K.textSec
     btn.TextXAlignment     = Enum.TextXAlignment.Left
     btn.LayoutOrder        = i
-    btn.AutoButtonColor    = false
-    btn.Selectable         = false
+    btn.AutoButtonColor    = false   -- PREVENTS ROBLOX DEFAULT COLOR CHANGE
+    btn.Selectable         = false   -- PREVENTS CURSOR / | BUG
     btn.ZIndex             = 204
     btn.Parent             = tabsF
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 5)
@@ -1291,41 +1237,7 @@ end
 
 local function mkDropdown(parent, opts)
     local IH   = 24
-    local function updateOptionsList()
-        local options = opts.options()
-        local listH = #options * IH + 4
-        dropL.Size = UDim2.fromOffset(math.max(selBtn.AbsoluteSize.X, 80), listH)
-        -- clear old items
-        for _, child in ipairs(dropL:GetChildren()) do
-            if child:IsA("TextButton") then child:Destroy() end
-        end
-        for i, opt in ipairs(options) do
-            local itm = Instance.new("TextButton")
-            itm.Size               = UDim2.new(1,0,0,IH)
-            itm.BackgroundColor3   = Color3.fromRGB(18,18,24)
-            itm.BackgroundTransparency = 0
-            itm.BorderSizePixel    = 0
-            itm.Text               = opt
-            itm.Font               = Enum.Font.GothamSemibold
-            itm.TextSize           = 9
-            itm.TextColor3         = K.textPri
-            itm.LayoutOrder        = i
-            itm.AutoButtonColor    = false
-            itm.Selectable         = false
-            itm.ZIndex             = 221
-            itm.Parent             = dropL
-            Instance.new("UICorner",itm).CornerRadius = UDim.new(0,4)
-            local ip = Instance.new("UIPadding"); ip.PaddingLeft=UDim.new(0,7); ip.Parent=itm
-            itm.MouseEnter:Connect(function() itm.BackgroundColor3=K.cardHov end)
-            itm.MouseLeave:Connect(function() itm.BackgroundColor3=Color3.fromRGB(18,18,24) end)
-            itm.MouseButton1Click:Connect(function()
-                pcall(function() UIS:ReleaseFocus() end)
-                selected=opt; selBtn.Text=opt; closeDD()
-                if opts.cb then opts.cb(opt) end
-            end)
-        end
-    end
-
+    local listH = #opts.options * IH + 4
     local card = Instance.new("Frame")
     card.Size               = UDim2.new(1,0,0,36)
     card.BackgroundColor3   = K.card
@@ -1353,7 +1265,7 @@ local function mkDropdown(parent, opts)
     selBtn.BackgroundColor3   = Color3.fromRGB(18,18,24)
     selBtn.BackgroundTransparency = 0
     selBtn.BorderSizePixel    = 0
-    selBtn.Text               = opts.def or (opts.options())[1]
+    selBtn.Text               = opts.def or opts.options[1]
     selBtn.Font               = Enum.Font.GothamSemibold
     selBtn.TextSize           = 9
     selBtn.TextColor3         = K.textPri
@@ -1375,7 +1287,7 @@ local function mkDropdown(parent, opts)
     chev.ZIndex             = 212
     chev.Parent             = selBtn
     local dropL = Instance.new("Frame")
-    dropL.Size             = UDim2.fromOffset(10, 100)
+    dropL.Size             = UDim2.fromOffset(10, listH)
     dropL.Position         = UDim2.new(selBtn.Position.X.Scale, selBtn.Position.X.Offset, 1, 2)
     dropL.BackgroundColor3 = Color3.fromRGB(18,18,24)
     dropL.BackgroundTransparency = 0
@@ -1393,25 +1305,43 @@ local function mkDropdown(parent, opts)
     dlP.PaddingLeft=UDim.new(0,2); dlP.PaddingRight=UDim.new(0,2)
     dlP.Parent = dropL
     local isOpen = false
-    local selected = opts.def or (opts.options())[1]
-
+    local selected = opts.def or opts.options[1]
     local function closeDD() isOpen=false; dropL.Visible=false end
     local function openDD()
-        updateOptionsList()
         local sw = selBtn.AbsoluteSize.X
-        dropL.Size = UDim2.fromOffset(math.max(sw, 80), #opts.options() * IH + 4)
+        dropL.Size = UDim2.fromOffset(math.max(sw, 80), listH)
         isOpen=true; dropL.Visible=true
     end
-
+    for i, opt in ipairs(opts.options) do
+        local o   = opt
+        local itm = Instance.new("TextButton")
+        itm.Size               = UDim2.new(1,0,0,IH)
+        itm.BackgroundColor3   = Color3.fromRGB(18,18,24)
+        itm.BackgroundTransparency = 0
+        itm.BorderSizePixel    = 0
+        itm.Text               = o
+        itm.Font               = Enum.Font.GothamSemibold
+        itm.TextSize           = 9
+        itm.TextColor3         = K.textPri
+        itm.LayoutOrder        = i
+        itm.AutoButtonColor    = false
+        itm.Selectable         = false
+        itm.ZIndex             = 221
+        itm.Parent             = dropL
+        Instance.new("UICorner",itm).CornerRadius = UDim.new(0,4)
+        local ip = Instance.new("UIPadding"); ip.PaddingLeft=UDim.new(0,7); ip.Parent=itm
+        itm.MouseEnter:Connect(function() itm.BackgroundColor3=K.cardHov end)
+        itm.MouseLeave:Connect(function() itm.BackgroundColor3=Color3.fromRGB(18,18,24) end)
+        itm.MouseButton1Click:Connect(function()
+            pcall(function() UIS:ReleaseFocus() end)
+            selected=o; selBtn.Text=o; closeDD()
+            if opts.cb then opts.cb(o) end
+        end)
+    end
     selBtn.MouseButton1Click:Connect(function()
         pcall(function() UIS:ReleaseFocus() end)
         if isOpen then closeDD() else openDD() end
     end)
-
-    -- auto refresh when players change
-    Players.PlayerAdded:Connect(function() if isOpen then openDD() else updateOptionsList() end end)
-    Players.PlayerRemoving:Connect(function() if isOpen then openDD() else updateOptionsList() end end)
-
     return card, function() return selected end
 end
 
@@ -1488,12 +1418,12 @@ local ak = tabPanels["AutoKill"]
 local _o = 0; local function o() _o=_o+1; return _o end
 
 mkSection(ak, "Target", o())
-local targetDropdown, getSelectedTarget = mkDropdown(ak, {title="Select Target", options=getPlayerNames, def="None", order=o(), cb=function(v)
+mkDropdown(ak, {title="Select Target", options=playerNames(), def="None", order=o(), cb=function(v)
     S.target = (v=="None") and nil or Players:FindFirstChild(v)
 end})
 
 mkSection(ak, "Follow Mode", o())
-mkDropdown(ak, {title="Mode", options=function() return {"HEAD","ORBIT","FEET"} end, def="HEAD", order=o(), cb=function(v)
+mkDropdown(ak, {title="Mode", options={"HEAD","ORBIT","FEET"}, def="HEAD", order=o(), cb=function(v)
     S.followMode=v; _orbit=0
 end})
 mkSlider(ak, {title="Stud Distance", min=1, max=20, def=3,  suf=" st", step=0.5, order=o(), cb=function(v) S.studDist=v end})
@@ -1506,7 +1436,7 @@ mkToggle(ak, {title="Auto Tap", sub="Tap attack buttons automatically", val=fals
     else autoTapAlive=false end
 end})
 mkSlider(ak, {title="Tap Delay", min=0.05, max=2, def=0.2, suf="s", step=0.05, order=o(), cb=function(v) S.tapDelay=v end})
-mkDropdown(ak, {title="Attack Skill", options=function() return {"Pukulan Biasa","Pukulan Berurutan","Dorong","Uppercut"} end, def="Pukulan Biasa", order=o(), cb=function(v) S.tapSkill=v end})
+mkDropdown(ak, {title="Attack Skill", options={"Pukulan Biasa","Pukulan Berurutan","Dorong","Uppercut"}, def="Pukulan Biasa", order=o(), cb=function(v) S.tapSkill=v end})
 
 mkSection(ak, "Actions", o())
 mkToggle(ak, {title="Follow Target", sub="Stick to selected target", val=false, order=o(), cb=function(v)
@@ -1631,6 +1561,49 @@ mkButton(tp, {title="Bring Target to Me", order=t(), cb=function()
 end})
 
 -- ══════════════════════════════════════════════
+-- DRAG  (title bar only, not sidebar or content)
+-- ══════════════════════════════════════════════
+do
+    local drag=false; local tRef=nil; local sP=nil; local sW=nil
+
+    local function inCtrl(px)
+        local ax = titlebar.AbsolutePosition.X
+        local aw = titlebar.AbsoluteSize.X
+        return px > ax + aw - 62
+    end
+
+    titlebar.InputBegan:Connect(function(inp)
+        local isT = inp.UserInputType == Enum.UserInputType.Touch
+        local isM = inp.UserInputType == Enum.UserInputType.MouseButton1
+        if not (isT or isM) then return end
+        if inCtrl(inp.Position.X) then return end
+        drag=true; tRef=inp
+        sP = Vector2.new(inp.Position.X, inp.Position.Y)
+        sW = Vector2.new(win.AbsolutePosition.X, win.AbsolutePosition.Y)
+    end)
+
+    UIS.InputChanged:Connect(function(inp)
+        if not drag then return end
+        local isT = inp.UserInputType == Enum.UserInputType.Touch
+        local isM = inp.UserInputType == Enum.UserInputType.MouseMove
+        if not (isT or isM) then return end
+        if isT and inp ~= tRef then return end
+        local d   = Vector2.new(inp.Position.X, inp.Position.Y) - sP
+        local vp2 = Cam.ViewportSize
+        win.Position = UDim2.fromOffset(
+            math.clamp(sW.X + d.X, 0, vp2.X - WIN_W),
+            math.clamp(sW.Y + d.Y, 0, vp2.Y - WIN_H)
+        )
+    end)
+
+    UIS.InputEnded:Connect(function(inp)
+        if inp == tRef or inp.UserInputType == Enum.UserInputType.MouseButton1 then
+            drag=false; tRef=nil
+        end
+    end)
+end
+
+-- ══════════════════════════════════════════════
 -- FLOAT ICON  (appears when minimized)
 -- ══════════════════════════════════════════════
 local floatF = Instance.new("Frame")
@@ -1651,22 +1624,20 @@ local fiImg = Instance.new("ImageLabel")
 fiImg.Size               = UDim2.fromOffset(42, 42)
 fiImg.Position           = UDim2.fromOffset(3, 3)
 fiImg.BackgroundTransparency = 1
-fiImg.Image              = "rbxasset://textures/ui/GuiImagePlaceholder.png"
+fiImg.Image              = ""
 fiImg.ZIndex             = 601
 fiImg.Parent             = floatF
 Instance.new("UICorner", fiImg).CornerRadius = UDim.new(0, 8)
 
 task.spawn(function()
     pcall(function()
-        local img = Players:GetUserThumbnailAsync(97269958324726, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size150x150)
-        if img and img ~= "" then fiImg.Image = img end
+        local img = Players:GetUserThumbnailAsync(
+            97269958324726,
+            Enum.ThumbnailType.HeadShot,
+            Enum.ThumbnailSize.Size150x150
+        )
+        fiImg.Image = img
     end)
-    if fiImg.Image == "rbxasset://textures/ui/GuiImagePlaceholder.png" then
-        pcall(function()
-            local img = Players:GetUserThumbnailAsync(LP.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size150x150)
-            if img and img ~= "" then fiImg.Image = img end
-        end)
-    end
 end)
 
 local function anchorFloat()
@@ -1738,7 +1709,7 @@ task.spawn(function()
     pcall(function()
         SG:SetCore("SendNotification", {
             Title    = "Anonymous9x TSB Strong",
-            Text     = "v5.1 Ready  |  All systems online",
+            Text     = "v5.0 Ready  |  All systems online",
             Duration = 4,
         })
     end)
