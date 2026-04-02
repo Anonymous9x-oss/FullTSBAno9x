@@ -1,81 +1,88 @@
 --[[
-    Anonymous9x TSB Strong  v5.0
-    The Strongest Battlegrounds
-    By Anonymous9x
-    website : https://anonymous9x-site.pages.dev/
-    youtube : https://youtube.com/@anonymous9xch
-    ─────────────────────────────────────────────
-    All executors  |  PC + Mobile + Touch + Mouse
-    Monochrome UI  |  Loading  |  FPS/Ping Status
-    Float-icon minimize  |  Zero cursor bugs
+  Anonymous9x TSB Strong  v6.0
+  The Strongest Battlegrounds
+  By Anonymous9x
+  ──────────────────────────────────────────
+  CURSOR BUG ROOT CAUSE & FIX:
+    TextButton on Delta mobile triggers text
+    input mode → shows | cursor.
+    Fix: ALL clickable elements use ImageButton
+    instead of TextButton. ImageButton NEVER
+    shows a text cursor under any executor.
+
+  DRAG ROOT CAUSE & FIX:
+    Frame.InputBegan is unreliable on Delta
+    mobile. Fix: use global UIS.InputBegan
+    and check coords against header bounds.
+
+  STATUS BAR:
+    FPS + Ping rendered INSIDE panel header,
+    not outside.
 ]]
 
--- ══════════════════════════════════════════════
+-- ═════════════════════════════════════════
 -- SERVICES
--- ══════════════════════════════════════════════
-local Players   = game:GetService("Players")
-local RS        = game:GetService("RunService")
-local UIS       = game:GetService("UserInputService")
-local TS        = game:GetService("TweenService")
-local SG        = game:GetService("StarterGui")
-local LP        = Players.LocalPlayer
-local Cam       = workspace.CurrentCamera
+-- ═════════════════════════════════════════
+local Players = game:GetService("Players")
+local RS      = game:GetService("RunService")
+local UIS     = game:GetService("UserInputService")
+local TS      = game:GetService("TweenService")
+local SG      = game:GetService("StarterGui")
+local LP      = Players.LocalPlayer
+local Cam     = workspace.CurrentCamera
 
--- ══════════════════════════════════════════════
--- CHARACTER  (auto re-link on respawn)
--- ══════════════════════════════════════════════
+-- ═════════════════════════════════════════
+-- CHARACTER
+-- ═════════════════════════════════════════
 local char, hum, hrp
 local function linkChar(c)
     char = c
-    hum  = c:WaitForChild("Humanoid",         10)
+    hum  = c:WaitForChild("Humanoid", 10)
     hrp  = c:WaitForChild("HumanoidRootPart", 10)
 end
 if LP.Character then linkChar(LP.Character) end
 LP.CharacterAdded:Connect(linkChar)
 
--- ══════════════════════════════════════════════
--- TSB ATTRIBUTE INIT
--- ══════════════════════════════════════════════
+-- ═════════════════════════════════════════
+-- TSB ATTRIBUTES
+-- ═════════════════════════════════════════
 local function initTSB()
     pcall(function()
-        local uid = tostring(LP.UserId)
-        workspace:SetAttribute("VIPServer",      uid)
+        workspace:SetAttribute("VIPServer",      tostring(LP.UserId))
         workspace:SetAttribute("VIPServerOwner", LP.Name)
-        if LP:GetAttribute("ExtraSlots")    == nil then LP:SetAttribute("ExtraSlots",    false) end
-        if LP:GetAttribute("EmoteSearchBar") == nil then LP:SetAttribute("EmoteSearchBar",false) end
-        if workspace:GetAttribute("NoDashCooldown") == nil then workspace:SetAttribute("NoDashCooldown",false) end
-        if workspace:GetAttribute("NoFatigue")       == nil then workspace:SetAttribute("NoFatigue",      false) end
+        if LP:GetAttribute("ExtraSlots")          == nil then LP:SetAttribute("ExtraSlots",        false) end
+        if LP:GetAttribute("EmoteSearchBar")      == nil then LP:SetAttribute("EmoteSearchBar",    false) end
+        if workspace:GetAttribute("NoDashCooldown") == nil then workspace:SetAttribute("NoDashCooldown", false) end
+        if workspace:GetAttribute("NoFatigue")      == nil then workspace:SetAttribute("NoFatigue",      false) end
     end)
 end
 initTSB()
 
--- ══════════════════════════════════════════════
+-- ═════════════════════════════════════════
 -- STATE
--- ══════════════════════════════════════════════
+-- ═════════════════════════════════════════
 local S = {
     followOn=false, soloHacker=false, dragHold=false,
-    camLock=false,  antiVoid=false,
-    followMode="HEAD", studDist=3, followSpeed=20, camDist=12,
-    target=nil,
+    camLock=false, antiVoid=false,
+    mode="HEAD", dist=3, speed=20, camDist=12, target=nil,
     speedOn=false, speedVal=1.5,
-    jumpOn=false,  jumpVal=50,
-    walkspeed=16,  wsOn=false,
-    noDashCD=false, noFatigue=false,
-    extraSlots=false, emoteSearch=false,
-    autoTapOn=false, tapDelay=0.2, tapSkill="Pukulan Biasa",
+    jumpOn=false, jumpVal=50,
+    ws=16, wsOn=false,
+    tapOn=false, tapDelay=0.2, tapSkill="Pukulan Biasa",
+    noDash=false, noFatigue=false, extraSlots=false, emoteSearch=false,
 }
-local _orbit       = 0
-local autoTapAlive = false
+local orbit = 0
+local tapAlive = false
 
--- ══════════════════════════════════════════════
+-- ═════════════════════════════════════════
 -- HELPERS
--- ══════════════════════════════════════════════
-local function getTHRP()
+-- ═════════════════════════════════════════
+local function getHRP()
     if not S.target then return nil end
     local c = S.target.Character
     return c and c:FindFirstChild("HumanoidRootPart")
 end
-local function getTHead()
+local function getHead()
     if not S.target then return nil end
     local c = S.target.Character
     return c and c:FindFirstChild("Head")
@@ -85,12 +92,12 @@ local function allEnemies()
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= LP and p.Character then
             local h = p.Character:FindFirstChild("HumanoidRootPart")
-            if h then t[#t+1] = {player=p, hrp=h} end
+            if h then t[#t+1] = {p=p, hrp=h} end
         end
     end
     return t
 end
-local function playerNames()
+local function pNames()
     local n = {"None"}
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= LP then n[#n+1] = p.Name end
@@ -98,49 +105,43 @@ local function playerNames()
     return n
 end
 
--- ══════════════════════════════════════════════
--- AUTO TAP ENGINE
--- ══════════════════════════════════════════════
-local function findSkillBtn(skill)
-    local map = {
-        ["Pukulan Biasa"]     = {"Pukulan Biasa","Basic Attack","Attack"},
-        ["Pukulan Berurutan"] = {"Pukulan Berurutan","Combo","Jab"},
-        ["Dorong"]            = {"Dorong","Push"},
-        ["Uppercut"]          = {"Uppercut","Upper"},
-    }
-    local texts = map[skill] or {skill}
-    for _, gui in ipairs(LP.PlayerGui:GetChildren()) do
-        if gui:IsA("ScreenGui") and gui.Enabled then
-            for _, btn in ipairs(gui:GetDescendants()) do
-                if btn:IsA("TextButton") and btn.Visible then
-                    local t = btn.Text:match("^%s*(.-)%s*$") or ""
-                    for _, pat in ipairs(texts) do
-                        if t:find(pat, 1, true) then return btn end
+-- ═════════════════════════════════════════
+-- AUTO TAP
+-- ═════════════════════════════════════════
+local SKILL_MAP = {
+    ["Pukulan Biasa"]     = {"Pukulan Biasa","Basic Attack","Attack"},
+    ["Pukulan Berurutan"] = {"Pukulan Berurutan","Combo","Jab"},
+    ["Dorong"]            = {"Dorong","Push"},
+    ["Uppercut"]          = {"Uppercut","Upper"},
+}
+local function tapLoop()
+    while tapAlive do
+        if S.tapOn and S.target and char and hrp then
+            local texts = SKILL_MAP[S.tapSkill] or {S.tapSkill}
+            for _, g in ipairs(LP.PlayerGui:GetChildren()) do
+                if g:IsA("ScreenGui") and g.Enabled then
+                    for _, b in ipairs(g:GetDescendants()) do
+                        if b:IsA("TextButton") and b.Visible then
+                            local t = (b.Text or ""):match("^%s*(.-)%s*$") or ""
+                            for _, pat in ipairs(texts) do
+                                if t:find(pat, 1, true) then
+                                    pcall(function() b.MouseButton1Click:Fire() end)
+                                end
+                            end
+                        end
                     end
                 end
-            end
-        end
-    end
-end
-local function tapLoop()
-    while autoTapAlive do
-        if S.autoTapOn and S.target and char and hrp then
-            local btn = findSkillBtn(S.tapSkill)
-            if btn then
-                pcall(function() btn.MouseButton1Click:Fire() end)
-                pcall(function() btn.Activated:Fire() end)
             end
         end
         task.wait(S.tapDelay)
     end
 end
 
--- ══════════════════════════════════════════════
--- COMBAT ENGINE  (Heartbeat)
--- ══════════════════════════════════════════════
+-- ═════════════════════════════════════════
+-- COMBAT ENGINE
+-- ═════════════════════════════════════════
 RS.Heartbeat:Connect(function(dt)
     if not hrp or not char then return end
-
     if S.speedOn and hum then
         local d = hum.MoveDirection
         if d.Magnitude > 0 then
@@ -148,7 +149,7 @@ RS.Heartbeat:Connect(function(dt)
         end
     end
     if S.wsOn and hum then
-        pcall(function() if hum.WalkSpeed ~= S.walkspeed then hum.WalkSpeed = S.walkspeed end end)
+        pcall(function() if hum.WalkSpeed ~= S.ws then hum.WalkSpeed = S.ws end end)
     end
     if S.jumpOn and hum then
         pcall(function() hum.JumpHeight = S.jumpVal end)
@@ -156,1430 +157,1203 @@ RS.Heartbeat:Connect(function(dt)
     if S.antiVoid and hrp.Position.Y < -250 then
         pcall(function() hrp.CFrame = CFrame.new(hrp.Position.X, 100, hrp.Position.Z) end)
     end
-
-    local targets = {}
-    if S.soloHacker then
-        targets = allEnemies()
-    elseif S.followOn and S.target then
-        local tH = getTHRP()
-        if tH then targets[1] = {player=S.target, hrp=tH} end
-    end
-
-    if #targets > 0 then
-        local tHRP  = targets[1].hrp
-        local tPos  = tHRP.Position
-        local dist  = S.studDist
-        local newCF = nil
-
-        if S.followMode == "ORBIT" then
-            _orbit = _orbit + dt * S.followSpeed * 0.12
-            newCF  = CFrame.lookAt(
-                Vector3.new(tPos.X + math.cos(_orbit)*dist, tPos.Y, tPos.Z + math.sin(_orbit)*dist),
-                tPos
-            )
-        elseif S.followMode == "HEAD" then
-            local head  = getTHead()
-            local headY = head and head.Position.Y or tPos.Y + 2.5
-            local look  = tHRP.CFrame.LookVector
-            newCF = CFrame.lookAt(
-                Vector3.new(tPos.X, headY, tPos.Z) + look * dist,
-                Vector3.new(tPos.X, headY, tPos.Z)
-            )
-        elseif S.followMode == "FEET" then
-            local look = tHRP.CFrame.LookVector
-            local fy   = tPos.Y - 2.5
-            newCF = CFrame.lookAt(
-                Vector3.new(tPos.X + look.X*dist, fy, tPos.Z + look.Z*dist),
-                Vector3.new(tPos.X, fy, tPos.Z)
-            )
+    local targets = S.soloHacker and allEnemies() or (function()
+        if S.followOn and S.target then
+            local th = getHRP()
+            if th then return {{p=S.target, hrp=th}} end
         end
-
-        if newCF then pcall(function() hrp.CFrame = newCF end) end
-
+        return {}
+    end)()
+    if #targets > 0 then
+        local th   = targets[1].hrp
+        local tPos = th.Position
+        local dist = S.dist
+        local cf   = nil
+        if S.mode == "ORBIT" then
+            orbit = orbit + dt * S.speed * 0.12
+            cf = CFrame.lookAt(
+                Vector3.new(tPos.X + math.cos(orbit)*dist, tPos.Y, tPos.Z + math.sin(orbit)*dist),
+                tPos)
+        elseif S.mode == "HEAD" then
+            local head  = getHead()
+            local hy    = head and head.Position.Y or tPos.Y + 2.5
+            local look  = th.CFrame.LookVector
+            cf = CFrame.lookAt(Vector3.new(tPos.X, hy, tPos.Z) + look*dist,
+                               Vector3.new(tPos.X, hy, tPos.Z))
+        elseif S.mode == "FEET" then
+            local look = th.CFrame.LookVector
+            local fy   = tPos.Y - 2.5
+            cf = CFrame.lookAt(
+                Vector3.new(tPos.X + look.X*dist, fy, tPos.Z + look.Z*dist),
+                Vector3.new(tPos.X, fy, tPos.Z))
+        end
+        if cf then pcall(function() hrp.CFrame = cf end) end
         if S.dragHold then
             for _, en in ipairs(targets) do
                 pcall(function()
                     en.hrp.CFrame = CFrame.new(hrp.Position +
-                        Vector3.new(math.random(-1,1)*0.5, 0.3, math.random(-1,1)*0.5))
+                        Vector3.new(math.random(-1,1)*0.4, 0.2, math.random(-1,1)*0.4))
                 end)
             end
         end
     end
-
     if S.camLock and S.target then
-        local look = (getTHead() or getTHRP())
-        if look then
+        local lk = getHead() or getHRP()
+        if lk then
             pcall(function()
                 Cam.CameraType = Enum.CameraType.Scriptable
-                Cam.CFrame     = CFrame.lookAt(Cam.CFrame.Position, look.Position)
+                Cam.CFrame     = CFrame.lookAt(Cam.CFrame.Position, lk.Position)
             end)
         end
     end
 end)
 
--- ══════════════════════════════════════════════
--- THEME  (monochrome: black / gray / white only)
--- ══════════════════════════════════════════════
-local K = {
-    winBG      = Color3.fromRGB(12, 12, 15),
-    sidebar    = Color3.fromRGB(17, 17, 21),
-    content    = Color3.fromRGB(13, 13, 17),
-    titleBG    = Color3.fromRGB( 9,  9, 12),
-    statusBG   = Color3.fromRGB( 9,  9, 12),
-    card       = Color3.fromRGB(23, 23, 29),
-    cardHov    = Color3.fromRGB(29, 29, 37),
-    sep        = Color3.fromRGB(32, 32, 42),
-    border     = Color3.fromRGB(40, 40, 52),
-    borderHi   = Color3.fromRGB(62, 62, 78),
-    white      = Color3.new(1, 1, 1),
-    textPri    = Color3.fromRGB(222, 222, 228),
-    textSec    = Color3.fromRGB(125, 125, 140),
-    textDim    = Color3.fromRGB( 72,  72,  88),
-    secLbl     = Color3.fromRGB(155, 155, 168),
-    tOn        = Color3.fromRGB(185, 185, 198),
-    tOff       = Color3.fromRGB( 40,  40,  52),
-    slFill     = Color3.fromRGB(175, 175, 190),
-    slTrack    = Color3.fromRGB( 36,  36,  48),
-    btnBG      = Color3.fromRGB( 26,  26,  34),
-    btnHov     = Color3.fromRGB( 36,  36,  46),
-    btnPre     = Color3.fromRGB( 46,  46,  58),
-    profileBG  = Color3.fromRGB( 15,  15,  19),
-    loadBG     = Color3.fromRGB(  8,   8,  10),
-    loadCard   = Color3.fromRGB( 17,  17,  21),
-}
+-- ═════════════════════════════════════════
+-- DESTROY OLD GUI
+-- ═════════════════════════════════════════
+pcall(function() game.CoreGui:FindFirstChild("_A9TSB6"):Destroy() end)
 
--- ══════════════════════════════════════════════
--- ROOT SCREENGUI
--- ══════════════════════════════════════════════
-pcall(function() game.CoreGui:FindFirstChild("__A9xTSB5"):Destroy() end)
-
+-- ═════════════════════════════════════════
+-- ROOT
+-- ═════════════════════════════════════════
 local root = Instance.new("ScreenGui")
-root.Name             = "__A9xTSB5"
-root.DisplayOrder     = 999
-root.ResetOnSpawn     = false
-root.ZIndexBehavior   = Enum.ZIndexBehavior.Sibling
-root.IgnoreGuiInset   = true
+root.Name           = "_A9TSB6"
+root.DisplayOrder   = 999
+root.ResetOnSpawn   = false
+root.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+root.IgnoreGuiInset = true
 pcall(function() root.Parent = game.CoreGui end)
 if not root.Parent then root.Parent = LP.PlayerGui end
 
--- ══════════════════════════════════════════════
--- LOADING SCREEN
--- ══════════════════════════════════════════════
-local loadBG = Instance.new("Frame")
-loadBG.Size               = UDim2.fromScale(1, 1)
-loadBG.BackgroundColor3   = K.loadBG
-loadBG.BackgroundTransparency = 0
-loadBG.ZIndex             = 5000
-loadBG.Parent             = root
+-- ═════════════════════════════════════════
+-- COLOUR PALETTE  (black / grey / white only)
+-- ═════════════════════════════════════════
+local C = {
+    win     = Color3.fromRGB(15, 15, 18),
+    header  = Color3.fromRGB(10, 10, 13),
+    sidebar = Color3.fromRGB(13, 13, 16),
+    content = Color3.fromRGB(17, 17, 21),
+    card    = Color3.fromRGB(22, 22, 27),
+    cardH   = Color3.fromRGB(28, 28, 34),
+    sep     = Color3.fromRGB(30, 30, 38),
+    border  = Color3.fromRGB(38, 38, 50),
+    borderH = Color3.fromRGB(58, 58, 76),
+    trkBg   = Color3.fromRGB(32, 32, 40),
+    trkFill = Color3.fromRGB(175,175,188),
+    tOn     = Color3.fromRGB(175,175,188),
+    tOff    = Color3.fromRGB(38, 38, 50),
+    white   = Color3.new(1,1,1),
+    pri     = Color3.fromRGB(220,220,226),
+    sec     = Color3.fromRGB(115,115,130),
+    dim     = Color3.fromRGB(70,  70, 85),
+    secLbl  = Color3.fromRGB(130,130,145),
+}
 
-local loadCard = Instance.new("Frame")
-loadCard.Size             = UDim2.fromOffset(270, 148)
-loadCard.Position         = UDim2.new(0.5, -135, 0.5, -74)
-loadCard.BackgroundColor3 = K.loadCard
-loadCard.BackgroundTransparency = 0
-loadCard.BorderSizePixel  = 0
-loadCard.ZIndex           = 5001
-loadCard.Parent           = loadBG
-Instance.new("UICorner", loadCard).CornerRadius = UDim.new(0, 10)
-local lcS = Instance.new("UIStroke", loadCard)
-lcS.Color = K.border; lcS.Thickness = 1
+-- ═════════════════════════════════════════
+-- DIMENSIONS
+-- ═════════════════════════════════════════
+local W  = 454   -- window width
+local H  = 372   -- window height
+local SW = 112   -- sidebar width
+local HDR = 38   -- header height
+local STH = 20   -- status strip height
 
--- Icon in load card
-local lcIconF = Instance.new("Frame")
-lcIconF.Size             = UDim2.fromOffset(48, 48)
-lcIconF.Position         = UDim2.new(0.5, -24, 0, 14)
-lcIconF.BackgroundColor3 = K.card
-lcIconF.BorderSizePixel  = 0
-lcIconF.ZIndex           = 5002
-lcIconF.Parent           = loadCard
-Instance.new("UICorner", lcIconF).CornerRadius = UDim.new(0, 9)
-
-local lcIconI = Instance.new("ImageLabel")
-lcIconI.Size               = UDim2.fromOffset(44, 44)
-lcIconI.Position           = UDim2.fromOffset(2, 2)
-lcIconI.BackgroundTransparency = 1
-lcIconI.Image              = ""
-lcIconI.ZIndex             = 5003
-lcIconI.Parent             = lcIconF
-Instance.new("UICorner", lcIconI).CornerRadius = UDim.new(0, 8)
-
-task.spawn(function()
-    pcall(function()
-        local img = Players:GetUserThumbnailAsync(
-            97269958324726,
-            Enum.ThumbnailType.HeadShot,
-            Enum.ThumbnailSize.Size150x150
-        )
-        lcIconI.Image = img
-    end)
-end)
-
-local function makeLbl(parent, txt, y, size, color, zIdx)
-    local l = Instance.new("TextLabel")
-    l.Size               = UDim2.new(1, -16, 0, 16)
-    l.Position           = UDim2.fromOffset(8, y)
-    l.BackgroundTransparency = 1
-    l.Text               = txt
-    l.Font               = Enum.Font.GothamBold
-    l.TextSize           = size
-    l.TextColor3         = color
-    l.TextXAlignment     = Enum.TextXAlignment.Center
-    l.ZIndex             = zIdx
-    l.Parent             = parent
-    return l
-end
-
-local lcTitle = makeLbl(loadCard, "Anonymous9x TSB Strong", 70, 12, K.textPri, 5002)
-local lcSub   = makeLbl(loadCard, "Initializing...", 88, 9,  K.textSec, 5002)
-local lcVer   = makeLbl(loadCard, "v5.0 Beta  |  By Anonymous9x", 130, 8, K.textDim, 5002)
-
--- Progress track
-local lcTrack = Instance.new("Frame")
-lcTrack.Size             = UDim2.new(1, -24, 0, 3)
-lcTrack.Position         = UDim2.fromOffset(12, 114)
-lcTrack.BackgroundColor3 = K.sep
-lcTrack.BorderSizePixel  = 0
-lcTrack.ZIndex           = 5002
-lcTrack.Parent           = loadCard
-Instance.new("UICorner", lcTrack).CornerRadius = UDim.new(1, 0)
-
-local lcFill = Instance.new("Frame")
-lcFill.Size             = UDim2.fromOffset(0, 3)
-lcFill.BackgroundColor3 = K.white
-lcFill.BorderSizePixel  = 0
-lcFill.ZIndex           = 5003
-lcFill.Parent           = lcTrack
-Instance.new("UICorner", lcFill).CornerRadius = UDim.new(1, 0)
-
--- Animate loading then destroy
-task.spawn(function()
-    local steps = {
-        {msg = "Loading modules...",  pct = 0.30},
-        {msg = "Fetching profile...", pct = 0.65},
-        {msg = "Building UI...",      pct = 0.90},
-        {msg = "Ready!",              pct = 1.00},
-    }
-    for _, s in ipairs(steps) do
-        lcSub.Text = s.msg
-        TS:Create(lcFill, TweenInfo.new(0.30, Enum.EasingStyle.Quad),
-            {Size = UDim2.new(s.pct, 0, 1, 0)}):Play()
-        task.wait(0.42)
-    end
-    task.wait(0.25)
-    TS:Create(loadBG, TweenInfo.new(0.35, Enum.EasingStyle.Quad),
-        {BackgroundTransparency = 1}):Play()
-    TS:Create(loadCard, TweenInfo.new(0.30, Enum.EasingStyle.Quad),
-        {BackgroundTransparency = 1}):Play()
-    task.wait(0.38)
-    pcall(function() loadBG:Destroy() end)
-end)
-
--- ══════════════════════════════════════════════
+-- ═════════════════════════════════════════
 -- WINDOW
--- ══════════════════════════════════════════════
-local WIN_W  = 476
-local WIN_H  = 396
-local SIDE_W = 120
-local TH     = 36   -- titlebar height
-local SH     = 22   -- statusbar height
-
+-- ═════════════════════════════════════════
 local vp = Cam.ViewportSize
-if vp.X < 10 then task.wait(0.12); vp = Cam.ViewportSize end
+if vp.X < 10 then task.wait(0.1); vp = Cam.ViewportSize end
 
 local win = Instance.new("Frame")
 win.Name               = "Win"
-win.Size               = UDim2.fromOffset(WIN_W, WIN_H)
+win.Size               = UDim2.fromOffset(W, H)
 win.Position           = UDim2.fromOffset(
-    math.max(0, math.floor((vp.X - WIN_W)/2)),
-    math.max(0, math.floor((vp.Y - WIN_H)/3))
-)
-win.BackgroundColor3   = K.winBG
-win.BackgroundTransparency = 0.10
+    math.max(4, math.floor((vp.X - W)/2)),
+    math.max(4, math.floor((vp.Y - H)/3)))
+win.BackgroundColor3   = C.win
+win.BackgroundTransparency = 0
 win.BorderSizePixel    = 0
 win.ClipsDescendants   = false
-win.ZIndex             = 200
+win.ZIndex             = 10
 win.Parent             = root
-Instance.new("UICorner", win).CornerRadius = UDim.new(0, 8)
-
+Instance.new("UICorner", win).CornerRadius = UDim.new(0, 7)
 local winS = Instance.new("UIStroke", win)
-winS.Color = K.border; winS.Thickness = 1
+winS.Color = C.border; winS.Thickness = 1
 
--- ══════════════════════════════════════════════
--- TITLE BAR
--- ══════════════════════════════════════════════
-local titlebar = Instance.new("Frame")
-titlebar.Name               = "TB"
-titlebar.Size               = UDim2.new(1, 0, 0, TH)
-titlebar.BackgroundColor3   = K.titleBG
-titlebar.BackgroundTransparency = 0.08
-titlebar.BorderSizePixel    = 0
-titlebar.ZIndex             = 202
-titlebar.Parent             = win
-Instance.new("UICorner", titlebar).CornerRadius = UDim.new(0, 8)
+-- ═════════════════════════════════════════
+-- HEADER
+-- ═════════════════════════════════════════
+local header = Instance.new("Frame")
+header.Name             = "Header"
+header.Size             = UDim2.new(1, 0, 0, HDR)
+header.BackgroundColor3 = C.header
+header.BackgroundTransparency = 0
+header.BorderSizePixel  = 0
+header.ZIndex           = 11
+header.Parent           = win
+Instance.new("UICorner", header).CornerRadius = UDim.new(0, 7)
 
--- Cover bottom rounded corners of titlebar
-local tbPatch = Instance.new("Frame")
-tbPatch.Size             = UDim2.new(1, 0, 0, 8)
-tbPatch.Position         = UDim2.new(0, 0, 1, -8)
-tbPatch.BackgroundColor3 = K.titleBG
-tbPatch.BackgroundTransparency = 0.08
-tbPatch.BorderSizePixel  = 0
-tbPatch.ZIndex           = 201
-tbPatch.Parent           = titlebar
+-- patch bottom corners of header
+local hPatch = Instance.new("Frame")
+hPatch.Size             = UDim2.new(1, 0, 0, 7)
+hPatch.Position         = UDim2.new(0, 0, 1, -7)
+hPatch.BackgroundColor3 = C.header
+hPatch.BackgroundTransparency = 0
+hPatch.BorderSizePixel  = 0
+hPatch.ZIndex           = 10
+hPatch.Parent           = header
 
--- Title separator
-local tbSep = Instance.new("Frame")
-tbSep.Size             = UDim2.new(1, 0, 0, 1)
-tbSep.Position         = UDim2.new(0, 0, 1, -1)
-tbSep.BackgroundColor3 = K.sep
-tbSep.BorderSizePixel  = 0
-tbSep.ZIndex           = 203
-tbSep.Parent           = titlebar
+local hBorder = Instance.new("Frame")
+hBorder.Size             = UDim2.new(1, 0, 0, 1)
+hBorder.Position         = UDim2.new(0, 0, 1, -1)
+hBorder.BackgroundColor3 = C.sep
+hBorder.BorderSizePixel  = 0
+hBorder.ZIndex           = 12
+hBorder.Parent           = header
 
--- Logo icon frame
+-- Logo: use rbxassetid directly (no GetUserThumbnailAsync needed)
 local logoF = Instance.new("Frame")
-logoF.Size             = UDim2.fromOffset(24, 24)
-logoF.Position         = UDim2.new(0, 9, 0.5, -12)
-logoF.BackgroundColor3 = K.card
+logoF.Size             = UDim2.fromOffset(26, 26)
+logoF.Position         = UDim2.new(0, 8, 0.5, -13)
+logoF.BackgroundColor3 = C.card
 logoF.BorderSizePixel  = 0
-logoF.ZIndex           = 204
-logoF.Parent           = titlebar
+logoF.ZIndex           = 12
+logoF.Parent           = header
 Instance.new("UICorner", logoF).CornerRadius = UDim.new(0, 6)
-local logoS = Instance.new("UIStroke", logoF)
-logoS.Color = K.borderHi; logoS.Thickness = 1
+local logoS = Instance.new("UIStroke", logoF); logoS.Color = C.borderH; logoS.Thickness = 1
 
-local logoI = Instance.new("ImageLabel")
-logoI.Size               = UDim2.fromOffset(20, 20)
-logoI.Position           = UDim2.fromOffset(2, 2)
-logoI.BackgroundTransparency = 1
-logoI.Image              = ""
-logoI.ZIndex             = 205
-logoI.Parent             = logoF
-Instance.new("UICorner", logoI).CornerRadius = UDim.new(0, 5)
+local logoImg = Instance.new("ImageLabel")
+logoImg.Size               = UDim2.fromOffset(22, 22)
+logoImg.Position           = UDim2.fromOffset(2, 2)
+logoImg.BackgroundTransparency = 1
+logoImg.Image              = "rbxassetid://97269958324726"
+logoImg.ScaleType          = Enum.ScaleType.Crop
+logoImg.ZIndex             = 13
+logoImg.Parent             = logoF
+Instance.new("UICorner", logoImg).CornerRadius = UDim.new(0, 5)
 
-task.spawn(function()
-    pcall(function()
-        local img = Players:GetUserThumbnailAsync(
-            97269958324726,
-            Enum.ThumbnailType.HeadShot,
-            Enum.ThumbnailSize.Size150x150
-        )
-        logoI.Image = img
-    end)
-end)
-
--- Title label
-local titleLbl = Instance.new("TextLabel")
-titleLbl.Size               = UDim2.new(1, -155, 1, 0)
-titleLbl.Position           = UDim2.fromOffset(40, 0)
-titleLbl.BackgroundTransparency = 1
-titleLbl.Text               = "Anonymous9x TSB Strong"
-titleLbl.Font               = Enum.Font.GothamBold
-titleLbl.TextSize           = 11
-titleLbl.TextColor3         = K.textPri
-titleLbl.TextXAlignment     = Enum.TextXAlignment.Left
-titleLbl.ZIndex             = 204
-titleLbl.Parent             = titlebar
+-- Title
+local titleL = Instance.new("TextLabel")
+titleL.Size               = UDim2.new(0, 170, 1, 0)
+titleL.Position           = UDim2.fromOffset(42, 0)
+titleL.BackgroundTransparency = 1
+titleL.Text               = "Ano9x TSB Strong"
+titleL.Font               = Enum.Font.GothamBold
+titleL.TextSize           = 11
+titleL.TextColor3         = C.pri
+titleL.TextXAlignment     = Enum.TextXAlignment.Left
+titleL.ZIndex             = 12
+titleL.Parent             = header
 
 -- Version badge
 local verF = Instance.new("Frame")
-verF.Size             = UDim2.fromOffset(46, 15)
-verF.Position         = UDim2.new(0, 40 + 168, 0.5, -7)
-verF.BackgroundColor3 = K.card
+verF.Size             = UDim2.fromOffset(38, 14)
+verF.Position         = UDim2.new(0, 215, 0.5, -7)
+verF.BackgroundColor3 = C.card
 verF.BorderSizePixel  = 0
-verF.ZIndex           = 204
-verF.Parent           = titlebar
+verF.ZIndex           = 12
+verF.Parent           = header
 Instance.new("UICorner", verF).CornerRadius = UDim.new(1, 0)
-local verS = Instance.new("UIStroke", verF)
-verS.Color = K.borderHi; verS.Thickness = 1
-
+local verS = Instance.new("UIStroke", verF); verS.Color = C.borderH; verS.Thickness = 1
 local verL = Instance.new("TextLabel")
 verL.Size               = UDim2.fromScale(1, 1)
 verL.BackgroundTransparency = 1
-verL.Text               = "v5.0"
+verL.Text               = "v6.0"
 verL.Font               = Enum.Font.GothamBold
 verL.TextSize           = 8
-verL.TextColor3         = K.textSec
-verL.ZIndex             = 205
+verL.TextColor3         = C.sec
+verL.ZIndex             = 13
 verL.Parent             = verF
 
--- Minimize button (−)
-local minBtn = Instance.new("TextButton")
-minBtn.Size               = UDim2.fromOffset(24, 20)
-minBtn.Position           = UDim2.new(1, -54, 0.5, -10)
-minBtn.BackgroundColor3   = Color3.fromRGB(35, 35, 46)
-minBtn.BackgroundTransparency = 0
-minBtn.BorderSizePixel    = 0
-minBtn.Text               = "−"
-minBtn.Font               = Enum.Font.GothamBold
-minBtn.TextSize           = 13
-minBtn.TextColor3         = K.textSec
-minBtn.AutoButtonColor    = false
-minBtn.Selectable         = false
-minBtn.ZIndex             = 205
-minBtn.Parent             = titlebar
-Instance.new("UICorner", minBtn).CornerRadius = UDim.new(0, 5)
+-- ─── FPS / Ping inside header (right side) ──────────────
+local fpsL = Instance.new("TextLabel")
+fpsL.Size               = UDim2.fromOffset(72, HDR)
+fpsL.Position           = UDim2.new(1, -120, 0, 0)
+fpsL.BackgroundTransparency = 1
+fpsL.Text               = "FPS  60"
+fpsL.Font               = Enum.Font.GothamBold
+fpsL.TextSize           = 9
+fpsL.TextColor3         = C.sec
+fpsL.TextXAlignment     = Enum.TextXAlignment.Right
+fpsL.ZIndex             = 12
+fpsL.Parent             = header
 
--- Close button (×)
-local closeBtn = Instance.new("TextButton")
-closeBtn.Size               = UDim2.fromOffset(24, 20)
-closeBtn.Position           = UDim2.new(1, -26, 0.5, -10)
-closeBtn.BackgroundColor3   = Color3.fromRGB(35, 35, 46)
-closeBtn.BackgroundTransparency = 0
-closeBtn.BorderSizePixel    = 0
-closeBtn.Text               = "×"
-closeBtn.Font               = Enum.Font.GothamBold
-closeBtn.TextSize           = 14
-closeBtn.TextColor3         = K.textSec
-closeBtn.AutoButtonColor    = false
-closeBtn.Selectable         = false
-closeBtn.ZIndex             = 205
-closeBtn.Parent             = titlebar
-Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 5)
+local pingL = Instance.new("TextLabel")
+pingL.Size               = UDim2.fromOffset(72, HDR)
+pingL.Position           = UDim2.new(1, -120, 0, 0)   -- same x, stacked via secondary text
+pingL.BackgroundTransparency = 1
+pingL.Text               = "0ms"
+pingL.Font               = Enum.Font.Gotham
+pingL.TextSize           = 8
+pingL.TextColor3         = C.dim
+pingL.TextXAlignment     = Enum.TextXAlignment.Right
+pingL.ZIndex             = 12
+pingL.Parent             = header
 
--- Hover for control buttons
-for _, b in ipairs({minBtn, closeBtn}) do
-    b.MouseEnter:Connect(function()
-        TS:Create(b, TweenInfo.new(0.10), {
-            BackgroundColor3 = Color3.fromRGB(52, 52, 66),
-            TextColor3       = K.white,
-        }):Play()
-    end)
-    b.MouseLeave:Connect(function()
-        TS:Create(b, TweenInfo.new(0.10), {
-            BackgroundColor3 = Color3.fromRGB(35, 35, 46),
-            TextColor3       = K.textSec,
-        }):Play()
-    end)
-end
+-- Two-line FPS/Ping stack
+fpsL.Size     = UDim2.fromOffset(72, 18)
+fpsL.Position = UDim2.new(1, -120, 0, 4)
+pingL.Size    = UDim2.fromOffset(72, 14)
+pingL.Position = UDim2.new(1, -120, 0, 21)
 
--- ══════════════════════════════════════════════
--- STATUS BAR  (FPS  Ping  Version  Free)
--- ══════════════════════════════════════════════
-local statusBar = Instance.new("Frame")
-statusBar.Size               = UDim2.new(1, 0, 0, SH)
-statusBar.Position           = UDim2.fromOffset(0, TH)
-statusBar.BackgroundColor3   = K.statusBG
-statusBar.BackgroundTransparency = 0.12
-statusBar.BorderSizePixel    = 0
-statusBar.ZIndex             = 202
-statusBar.Parent             = win
-
-local sbSep = Instance.new("Frame")
-sbSep.Size             = UDim2.new(1, 0, 0, 1)
-sbSep.Position         = UDim2.new(0, 0, 1, -1)
-sbSep.BackgroundColor3 = K.sep
-sbSep.BorderSizePixel  = 0
-sbSep.ZIndex           = 203
-sbSep.Parent           = statusBar
-
-local sbLayout = Instance.new("UIListLayout")
-sbLayout.FillDirection     = Enum.FillDirection.Horizontal
-sbLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-sbLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
-sbLayout.Padding           = UDim.new(0, 0)
-sbLayout.Parent            = statusBar
-
-local sbPad = Instance.new("UIPadding")
-sbPad.PaddingLeft = UDim.new(0, 10)
-sbPad.Parent      = statusBar
-
--- Status item factory
-local fpsVal, pingVal
-
-local function makeSbItem(tag, val, order)
-    local f = Instance.new("Frame")
-    f.Size               = UDim2.fromOffset(88, SH)
-    f.BackgroundTransparency = 1
-    f.LayoutOrder        = order
-    f.ZIndex             = 203
-    f.Parent             = statusBar
-
-    local tl = Instance.new("TextLabel")
-    tl.Size               = UDim2.fromOffset(28, SH)
-    tl.BackgroundTransparency = 1
-    tl.Text               = tag
-    tl.Font               = Enum.Font.GothamBold
-    tl.TextSize           = 8
-    tl.TextColor3         = K.textDim
-    tl.ZIndex             = 204
-    tl.Parent             = f
-
-    local vl = Instance.new("TextLabel")
-    vl.Size               = UDim2.fromOffset(54, SH)
-    vl.Position           = UDim2.fromOffset(28, 0)
-    vl.BackgroundTransparency = 1
-    vl.Text               = val
-    vl.Font               = Enum.Font.GothamBold
-    vl.TextSize           = 8
-    vl.TextColor3         = K.textPri
-    vl.ZIndex             = 204
-    vl.Parent             = f
-
-    -- Vertical separator
-    local vs = Instance.new("Frame")
-    vs.Size             = UDim2.fromOffset(1, 11)
-    vs.Position         = UDim2.new(1, -1, 0.5, -5)
-    vs.BackgroundColor3 = K.sep
-    vs.BorderSizePixel  = 0
-    vs.ZIndex           = 203
-    vs.Parent           = f
-
-    return vl
-end
-
-fpsVal  = makeSbItem("FPS",  "60",   1)
-pingVal = makeSbItem("Ping", "0ms",  2)
-
--- Static items
-local function makeSbStatic(txt, order)
-    local f = Instance.new("Frame")
-    f.Size               = UDim2.fromOffset(88, SH)
-    f.BackgroundTransparency = 1
-    f.LayoutOrder        = order
-    f.ZIndex             = 203
-    f.Parent             = statusBar
-
-    local l = Instance.new("TextLabel")
-    l.Size               = UDim2.fromScale(1, 1)
-    l.BackgroundTransparency = 1
-    l.Text               = txt
-    l.Font               = Enum.Font.GothamBold
-    l.TextSize           = 8
-    l.TextColor3         = K.textSec
-    l.ZIndex             = 204
-    l.Parent             = f
-
-    local vs = Instance.new("Frame")
-    vs.Size             = UDim2.fromOffset(1, 11)
-    vs.Position         = UDim2.new(1, -1, 0.5, -5)
-    vs.BackgroundColor3 = K.sep
-    vs.BorderSizePixel  = 0
-    vs.ZIndex           = 203
-    vs.Parent           = f
-end
-
-makeSbStatic("v5.0 Beta", 3)
-makeSbStatic("FREE",      4)
-
--- Real-time FPS / Ping
-local _fpsT = 0
-local _fpsN = 0
+-- Realtime update
+local _ft = 0; local _fn = 0
 RS.Heartbeat:Connect(function(dt)
-    _fpsN = _fpsN + 1
-    _fpsT = _fpsT + dt
-    if _fpsT >= 0.5 then
-        fpsVal.Text = tostring(math.floor(_fpsN / _fpsT))
-        _fpsN = 0; _fpsT = 0
+    _fn = _fn + 1; _ft = _ft + dt
+    if _ft >= 0.5 then
+        fpsL.Text = "FPS  " .. tostring(math.floor(_fn/_ft))
+        _fn = 0; _ft = 0
     end
     pcall(function()
-        pingVal.Text = tostring(math.floor(LP:GetNetworkPing() * 1000)) .. "ms"
+        local ms = math.floor(LP:GetNetworkPing() * 1000)
+        pingL.Text = ms .. " ms"
     end)
 end)
 
--- ══════════════════════════════════════════════
--- BODY  (sidebar + content)
--- ══════════════════════════════════════════════
-local BODY_Y = TH + SH
+-- ─── Minimize / Close (ImageButton — NO cursor ever) ────
+local function makeCtrlBtn(xOff, symbol)
+    local b = Instance.new("ImageButton")
+    b.Size               = UDim2.fromOffset(24, 20)
+    b.Position           = UDim2.new(1, xOff, 0.5, -10)
+    b.BackgroundColor3   = C.card
+    b.BackgroundTransparency = 0
+    b.BorderSizePixel    = 0
+    b.Image              = ""
+    b.AutoButtonColor    = false
+    b.ZIndex             = 13
+    b.Parent             = header
+    Instance.new("UICorner", b).CornerRadius = UDim.new(0, 5)
+    local lbl = Instance.new("TextLabel")
+    lbl.Size               = UDim2.fromScale(1, 1)
+    lbl.BackgroundTransparency = 1
+    lbl.Text               = symbol
+    lbl.Font               = Enum.Font.GothamBold
+    lbl.TextSize           = 13
+    lbl.TextColor3         = C.sec
+    lbl.ZIndex             = 14
+    lbl.Parent             = b
+    b.MouseEnter:Connect(function()
+        TS:Create(b, TweenInfo.new(0.1), {BackgroundColor3=C.cardH}):Play()
+        lbl.TextColor3 = C.white
+    end)
+    b.MouseLeave:Connect(function()
+        TS:Create(b, TweenInfo.new(0.1), {BackgroundColor3=C.card}):Play()
+        lbl.TextColor3 = C.sec
+    end)
+    return b
+end
 
+local minBtn   = makeCtrlBtn(-54, "−")
+local closeBtn = makeCtrlBtn(-26, "×")
+
+-- ═════════════════════════════════════════
+-- BODY
+-- ═════════════════════════════════════════
 local body = Instance.new("Frame")
-body.Name               = "Body"
-body.Size               = UDim2.new(1, 0, 1, -BODY_Y)
-body.Position           = UDim2.fromOffset(0, BODY_Y)
+body.Size               = UDim2.new(1, 0, 1, -HDR)
+body.Position           = UDim2.fromOffset(0, HDR)
 body.BackgroundTransparency = 1
 body.BorderSizePixel    = 0
 body.ClipsDescendants   = true
-body.ZIndex             = 201
+body.ZIndex             = 11
 body.Parent             = win
 
--- ══════════════════════════════════════════════
+-- ═════════════════════════════════════════
 -- SIDEBAR
--- ══════════════════════════════════════════════
+-- ═════════════════════════════════════════
 local sidebar = Instance.new("Frame")
-sidebar.Size               = UDim2.fromOffset(SIDE_W, WIN_H - BODY_Y)
-sidebar.BackgroundColor3   = K.sidebar
-sidebar.BackgroundTransparency = 0.08
+sidebar.Size               = UDim2.fromOffset(SW, H - HDR)
+sidebar.BackgroundColor3   = C.sidebar
+sidebar.BackgroundTransparency = 0
 sidebar.BorderSizePixel    = 0
 sidebar.ClipsDescendants   = true
-sidebar.ZIndex             = 202
+sidebar.ZIndex             = 12
 sidebar.Parent             = body
 
-local sideEdge = Instance.new("Frame")
-sideEdge.Size             = UDim2.new(0, 1, 1, 0)
-sideEdge.Position         = UDim2.new(1, -1, 0, 0)
-sideEdge.BackgroundColor3 = K.sep
-sideEdge.BorderSizePixel  = 0
-sideEdge.ZIndex           = 203
-sideEdge.Parent           = sidebar
+local sideR = Instance.new("Frame")
+sideR.Size             = UDim2.new(0, 1, 1, 0)
+sideR.Position         = UDim2.new(1, -1, 0, 0)
+sideR.BackgroundColor3 = C.sep
+sideR.BorderSizePixel  = 0
+sideR.ZIndex           = 13
+sideR.Parent           = sidebar
 
--- ── Profile ──────────────────────────────────────────────
+-- ─── Profile ─────────────────────────────
 local profF = Instance.new("Frame")
-profF.Size             = UDim2.new(1, 0, 0, 82)
-profF.BackgroundColor3 = K.profileBG
-profF.BackgroundTransparency = 0.15
+profF.Size             = UDim2.new(1, 0, 0, 78)
+profF.BackgroundColor3 = C.header
+profF.BackgroundTransparency = 0
 profF.BorderSizePixel  = 0
-profF.ZIndex           = 203
+profF.ZIndex           = 13
 profF.Parent           = sidebar
 
+-- avatar ring
 local avRing = Instance.new("Frame")
-avRing.Size             = UDim2.fromOffset(42, 42)
-avRing.Position         = UDim2.new(0.5, -21, 0, 8)
-avRing.BackgroundColor3 = K.white
+avRing.Size             = UDim2.fromOffset(38, 38)
+avRing.Position         = UDim2.new(0.5, -19, 0, 7)
+avRing.BackgroundColor3 = C.borderH
 avRing.BorderSizePixel  = 0
-avRing.ZIndex           = 204
+avRing.ZIndex           = 14
 avRing.Parent           = profF
 Instance.new("UICorner", avRing).CornerRadius = UDim.new(1, 0)
 
 local avImg = Instance.new("ImageLabel")
-avImg.Size               = UDim2.fromOffset(38, 38)
+avImg.Size               = UDim2.fromOffset(34, 34)
 avImg.Position           = UDim2.fromOffset(2, 2)
-avImg.BackgroundColor3   = K.card
+avImg.BackgroundColor3   = C.card
 avImg.BackgroundTransparency = 0
 avImg.Image              = ""
-avImg.ZIndex             = 205
+avImg.ScaleType          = Enum.ScaleType.Crop
+avImg.ZIndex             = 15
 avImg.Parent             = avRing
 Instance.new("UICorner", avImg).CornerRadius = UDim.new(1, 0)
 
 task.spawn(function()
     pcall(function()
-        local img = Players:GetUserThumbnailAsync(
+        avImg.Image = Players:GetUserThumbnailAsync(
             LP.UserId,
             Enum.ThumbnailType.HeadShot,
-            Enum.ThumbnailSize.Size150x150
-        )
-        avImg.Image = img
+            Enum.ThumbnailSize.Size150x150)
     end)
 end)
 
-local dispLbl = Instance.new("TextLabel")
-dispLbl.Size               = UDim2.new(1, -4, 0, 13)
-dispLbl.Position           = UDim2.fromOffset(2, 54)
-dispLbl.BackgroundTransparency = 1
-dispLbl.Text               = LP.DisplayName
-dispLbl.Font               = Enum.Font.GothamBold
-dispLbl.TextSize           = 10
-dispLbl.TextColor3         = K.textPri
-dispLbl.TextXAlignment     = Enum.TextXAlignment.Center
-dispLbl.TextTruncate       = Enum.TextTruncate.AtEnd
-dispLbl.ZIndex             = 204
-dispLbl.Parent             = profF
+local dispL = Instance.new("TextLabel")
+dispL.Size               = UDim2.new(1, -4, 0, 12)
+dispL.Position           = UDim2.fromOffset(2, 49)
+dispL.BackgroundTransparency = 1
+dispL.Text               = LP.DisplayName
+dispL.Font               = Enum.Font.GothamBold
+dispL.TextSize           = 9
+dispL.TextColor3         = C.pri
+dispL.TextXAlignment     = Enum.TextXAlignment.Center
+dispL.TextTruncate       = Enum.TextTruncate.AtEnd
+dispL.ZIndex             = 14
+dispL.Parent             = profF
 
-local userLbl = Instance.new("TextLabel")
-userLbl.Size               = UDim2.new(1, -4, 0, 10)
-userLbl.Position           = UDim2.fromOffset(2, 68)
-userLbl.BackgroundTransparency = 1
-userLbl.Text               = "@" .. LP.Name
-userLbl.Font               = Enum.Font.Gotham
-userLbl.TextSize           = 8
-userLbl.TextColor3         = K.textSec
-userLbl.TextXAlignment     = Enum.TextXAlignment.Center
-userLbl.TextTruncate       = Enum.TextTruncate.AtEnd
-userLbl.ZIndex             = 204
-userLbl.Parent             = profF
+local userL = Instance.new("TextLabel")
+userL.Size               = UDim2.new(1, -4, 0, 10)
+userL.Position           = UDim2.fromOffset(2, 62)
+userL.BackgroundTransparency = 1
+userL.Text               = "@" .. LP.Name
+userL.Font               = Enum.Font.Gotham
+userL.TextSize           = 8
+userL.TextColor3         = C.sec
+userL.TextXAlignment     = Enum.TextXAlignment.Center
+userL.TextTruncate       = Enum.TextTruncate.AtEnd
+userL.ZIndex             = 14
+userL.Parent             = profF
 
 local profSep = Instance.new("Frame")
 profSep.Size             = UDim2.new(1, 0, 0, 1)
 profSep.Position         = UDim2.new(0, 0, 1, -1)
-profSep.BackgroundColor3 = K.sep
+profSep.BackgroundColor3 = C.sep
 profSep.BorderSizePixel  = 0
-profSep.ZIndex           = 204
+profSep.ZIndex           = 14
 profSep.Parent           = profF
 
--- ── Tab Buttons ──────────────────────────────────────────
-local tabsF = Instance.new("Frame")
-tabsF.Size               = UDim2.new(1, 0, 0, 148)
-tabsF.Position           = UDim2.fromOffset(0, 82)
-tabsF.BackgroundTransparency = 1
-tabsF.BorderSizePixel    = 0
-tabsF.ZIndex             = 203
-tabsF.Parent             = sidebar
-
-local tabsL = Instance.new("UIListLayout")
-tabsL.SortOrder = Enum.SortOrder.LayoutOrder
-tabsL.Padding   = UDim.new(0, 1)
-tabsL.Parent    = tabsF
-
-local tabsP = Instance.new("UIPadding")
-tabsP.PaddingLeft   = UDim.new(0, 5)
-tabsP.PaddingRight  = UDim.new(0, 5)
-tabsP.PaddingTop    = UDim.new(0, 6)
-tabsP.Parent        = tabsF
-
-local TAB_DEFS = {
-    {id="AutoKill", label="Auto Kill"},
-    {id="Movement", label="Movement"},
-    {id="Exploits", label="Exploits"},
+-- ─── Tab Buttons (ImageButton — zero cursor risk) ────────
+local TABS = {
+    {id="Kill",     label="Auto Kill"},
+    {id="Move",     label="Movement"},
+    {id="Exploit",  label="Exploits"},
     {id="Teleport", label="Teleport"},
 }
 local tabBtns   = {}
 local tabPanels = {}
-local activeTab = "AutoKill"
+local activeTab = "Kill"
+local cTabLbl   -- forward decl
 
--- Forward declare for the header update
-local cHeaderLbl
-
-local function setActive(id)
+local function setTab(id)
     activeTab = id
-    for _, def in ipairs(TAB_DEFS) do
+    for _, def in ipairs(TABS) do
         local btn = tabBtns[def.id]
         local pan = tabPanels[def.id]
         local on  = def.id == id
         if btn then
             TS:Create(btn, TweenInfo.new(0.12), {
-                BackgroundColor3   = on and K.cardHov or K.winBG,
+                BackgroundColor3   = on and C.cardH or C.sidebar,
                 BackgroundTransparency = on and 0 or 1,
-                TextColor3         = on and K.textPri or K.textSec,
             }):Play()
+            if btn:FindFirstChild("Txt") then
+                btn.Txt.TextColor3 = on and C.white or C.sec
+            end
             if btn:FindFirstChild("Acc") then
                 btn.Acc.BackgroundTransparency = on and 0 or 1
             end
         end
         if pan then pan.Visible = on end
     end
-    if cHeaderLbl then
-        local labels = {AutoKill="Auto Kill", Movement="Movement", Exploits="Exploits", Teleport="Teleport"}
-        cHeaderLbl.Text = labels[id] or id
-    end
+    if cTabLbl then cTabLbl.Text = id == "Kill" and "Auto Kill" or id end
 end
 
-for i, def in ipairs(TAB_DEFS) do
-    local id  = def.id
-    local btn = Instance.new("TextButton")
-    btn.Name               = "Tab_" .. id
-    btn.Size               = UDim2.new(1, 0, 0, 30)
-    btn.BackgroundColor3   = K.winBG
+local tabsF = Instance.new("Frame")
+tabsF.Size               = UDim2.new(1, 0, 0, 140)
+tabsF.Position           = UDim2.fromOffset(0, 78)
+tabsF.BackgroundTransparency = 1
+tabsF.BorderSizePixel    = 0
+tabsF.ZIndex             = 13
+tabsF.Parent             = sidebar
+
+local tabsLL = Instance.new("UIListLayout")
+tabsLL.SortOrder = Enum.SortOrder.LayoutOrder
+tabsLL.Padding   = UDim.new(0, 1)
+tabsLL.Parent    = tabsF
+
+local tabsPad = Instance.new("UIPadding")
+tabsPad.PaddingLeft  = UDim.new(0, 5)
+tabsPad.PaddingRight = UDim.new(0, 5)
+tabsPad.PaddingTop   = UDim.new(0, 5)
+tabsPad.Parent       = tabsF
+
+for i, def in ipairs(TABS) do
+    local id = def.id
+    -- USE ImageButton, NOT TextButton → no cursor ever
+    local btn = Instance.new("ImageButton")
+    btn.Name               = "Tab_"..id
+    btn.Size               = UDim2.new(1, 0, 0, 28)
+    btn.BackgroundColor3   = C.sidebar
     btn.BackgroundTransparency = 1
     btn.BorderSizePixel    = 0
-    btn.Text               = def.label
-    btn.Font               = Enum.Font.GothamSemibold
-    btn.TextSize           = 10
-    btn.TextColor3         = K.textSec
-    btn.TextXAlignment     = Enum.TextXAlignment.Left
+    btn.Image              = ""
+    btn.AutoButtonColor    = false
     btn.LayoutOrder        = i
-    btn.AutoButtonColor    = false   -- PREVENTS ROBLOX DEFAULT COLOR CHANGE
-    btn.Selectable         = false   -- PREVENTS CURSOR / | BUG
-    btn.ZIndex             = 204
+    btn.ZIndex             = 14
     btn.Parent             = tabsF
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 5)
 
-    local bp = Instance.new("UIPadding")
-    bp.PaddingLeft = UDim.new(0, 22)
-    bp.Parent      = btn
-
+    -- Accent bar
     local acc = Instance.new("Frame")
     acc.Name             = "Acc"
-    acc.Size             = UDim2.fromOffset(2, 14)
-    acc.Position         = UDim2.new(0, 7, 0.5, -7)
-    acc.BackgroundColor3 = K.white
+    acc.Size             = UDim2.fromOffset(2, 12)
+    acc.Position         = UDim2.new(0, 6, 0.5, -6)
+    acc.BackgroundColor3 = C.white
     acc.BackgroundTransparency = 1
     acc.BorderSizePixel  = 0
-    acc.ZIndex           = 205
+    acc.ZIndex           = 15
     acc.Parent           = btn
     Instance.new("UICorner", acc).CornerRadius = UDim.new(1, 0)
 
-    btn.MouseButton1Click:Connect(function()
-        pcall(function() UIS:ReleaseFocus() end)
-        setActive(id)
-    end)
+    -- Label
+    local lbl = Instance.new("TextLabel")
+    lbl.Name               = "Txt"
+    lbl.Size               = UDim2.new(1, -18, 1, 0)
+    lbl.Position           = UDim2.fromOffset(16, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.Text               = def.label
+    lbl.Font               = Enum.Font.GothamSemibold
+    lbl.TextSize           = 10
+    lbl.TextColor3         = C.sec
+    lbl.TextXAlignment     = Enum.TextXAlignment.Left
+    lbl.ZIndex             = 15
+    lbl.Parent             = btn
+
+    btn.MouseButton1Click:Connect(function() setTab(id) end)
     btn.MouseEnter:Connect(function()
         if activeTab ~= id then
-            TS:Create(btn, TweenInfo.new(0.10), {
-                BackgroundTransparency = 0.65,
-                TextColor3 = K.textPri,
-            }):Play()
+            TS:Create(btn, TweenInfo.new(0.10), {BackgroundTransparency=0.7}):Play()
+            lbl.TextColor3 = C.pri
         end
     end)
     btn.MouseLeave:Connect(function()
         if activeTab ~= id then
-            TS:Create(btn, TweenInfo.new(0.10), {
-                BackgroundTransparency = 1,
-                TextColor3 = K.textSec,
-            }):Play()
+            TS:Create(btn, TweenInfo.new(0.10), {BackgroundTransparency=1}):Play()
+            lbl.TextColor3 = C.sec
         end
     end)
     tabBtns[id] = btn
 end
 
--- ── Social links ─────────────────────────────────────────
-local socialF = Instance.new("Frame")
-socialF.Size             = UDim2.new(1, 0, 0, 58)
-socialF.Position         = UDim2.new(0, 0, 1, -58)
-socialF.BackgroundColor3 = K.profileBG
-socialF.BackgroundTransparency = 0.15
-socialF.BorderSizePixel  = 0
-socialF.ZIndex           = 203
-socialF.Parent           = sidebar
+-- ─── Social (ImageButton) ─────────────────────────────────
+local socF = Instance.new("Frame")
+socF.Size             = UDim2.new(1, 0, 0, 52)
+socF.Position         = UDim2.new(0, 0, 1, -52)
+socF.BackgroundColor3 = C.header
+socF.BackgroundTransparency = 0
+socF.BorderSizePixel  = 0
+socF.ZIndex           = 13
+socF.Parent           = sidebar
 
-local ssep = Instance.new("Frame")
-ssep.Size             = UDim2.new(1, 0, 0, 1)
-ssep.BackgroundColor3 = K.sep
-ssep.BorderSizePixel  = 0
-ssep.ZIndex           = 204
-ssep.Parent           = socialF
+local socTop = Instance.new("Frame")
+socTop.Size             = UDim2.new(1, 0, 0, 1)
+socTop.BackgroundColor3 = C.sep
+socTop.BorderSizePixel  = 0
+socTop.ZIndex           = 14
+socTop.Parent           = socF
 
-local function makeSocBtn(txt, yOff)
-    local b = Instance.new("TextButton")
-    b.Size               = UDim2.new(1, -10, 0, 20)
+local function mkSocBtn(txt, yOff)
+    local b = Instance.new("ImageButton")
+    b.Size               = UDim2.new(1, -10, 0, 18)
     b.Position           = UDim2.fromOffset(5, yOff)
-    b.BackgroundColor3   = K.btnBG
+    b.BackgroundColor3   = C.card
     b.BackgroundTransparency = 0
     b.BorderSizePixel    = 0
-    b.Text               = txt
-    b.Font               = Enum.Font.GothamBold
-    b.TextSize           = 8
-    b.TextColor3         = K.textPri
+    b.Image              = ""
     b.AutoButtonColor    = false
-    b.Selectable         = false
-    b.ZIndex             = 204
-    b.Parent             = socialF
+    b.ZIndex             = 14
+    b.Parent             = socF
     Instance.new("UICorner", b).CornerRadius = UDim.new(0, 4)
-    local bs = Instance.new("UIStroke", b)
-    bs.Color = K.border; bs.Thickness = 1
+    local l = Instance.new("TextLabel")
+    l.Size               = UDim2.fromScale(1, 1)
+    l.BackgroundTransparency = 1
+    l.Text               = txt
+    l.Font               = Enum.Font.GothamBold
+    l.TextSize           = 8
+    l.TextColor3         = C.pri
+    l.ZIndex             = 15
+    l.Parent             = b
     b.MouseEnter:Connect(function()
-        TS:Create(b, TweenInfo.new(0.10), {BackgroundColor3 = K.btnHov}):Play()
+        TS:Create(b, TweenInfo.new(0.10), {BackgroundColor3=C.cardH}):Play()
     end)
     b.MouseLeave:Connect(function()
-        TS:Create(b, TweenInfo.new(0.10), {BackgroundColor3 = K.btnBG}):Play()
+        TS:Create(b, TweenInfo.new(0.10), {BackgroundColor3=C.card}):Play()
     end)
     return b
 end
 
-local webBtn = makeSocBtn("My Website", 7)
-webBtn.MouseButton1Click:Connect(function()
-    pcall(function() UIS:ReleaseFocus() end)
+local webB = mkSocBtn("My Website", 6)
+webB.MouseButton1Click:Connect(function()
     pcall(function() setclipboard("https://anonymous9x-site.pages.dev/") end)
-    pcall(function() SG:SetCore("SendNotification",
-        {Title="A9X", Text="Website URL copied!", Duration=3}) end)
+    pcall(function() SG:SetCore("SendNotification",{Title="A9X",Text="Website URL copied!",Duration=3}) end)
 end)
 
-local ytBtn = makeSocBtn("YouTube  @anonymous9xch", 31)
-ytBtn.MouseButton1Click:Connect(function()
-    pcall(function() UIS:ReleaseFocus() end)
+local ytB = mkSocBtn("YouTube  @anonymous9xch", 28)
+ytB.MouseButton1Click:Connect(function()
     pcall(function() setclipboard("https://youtube.com/@anonymous9xch") end)
-    pcall(function() SG:SetCore("SendNotification",
-        {Title="A9X", Text="YouTube URL copied!", Duration=3}) end)
+    pcall(function() SG:SetCore("SendNotification",{Title="A9X",Text="YouTube URL copied!",Duration=3}) end)
 end)
 
--- ══════════════════════════════════════════════
+-- ═════════════════════════════════════════
 -- CONTENT AREA
--- ══════════════════════════════════════════════
+-- ═════════════════════════════════════════
 local cArea = Instance.new("Frame")
-cArea.Name               = "Content"
-cArea.Size               = UDim2.new(1, -SIDE_W, 1, 0)
-cArea.Position           = UDim2.fromOffset(SIDE_W, 0)
-cArea.BackgroundColor3   = K.content
-cArea.BackgroundTransparency = 0.08
+cArea.Size               = UDim2.new(1, -SW, 1, 0)
+cArea.Position           = UDim2.fromOffset(SW, 0)
+cArea.BackgroundColor3   = C.content
+cArea.BackgroundTransparency = 0
 cArea.BorderSizePixel    = 0
 cArea.ClipsDescendants   = true
-cArea.ZIndex             = 202
+cArea.ZIndex             = 12
 cArea.Parent             = body
 
--- Content header strip
-local cHead = Instance.new("Frame")
-cHead.Size             = UDim2.new(1, 0, 0, 28)
-cHead.BackgroundColor3 = K.titleBG
-cHead.BackgroundTransparency = 0.10
-cHead.BorderSizePixel  = 0
-cHead.ZIndex           = 203
-cHead.Parent           = cArea
+local cBar = Instance.new("Frame")
+cBar.Size             = UDim2.new(1, 0, 0, 24)
+cBar.BackgroundColor3 = C.header
+cBar.BackgroundTransparency = 0
+cBar.BorderSizePixel  = 0
+cBar.ZIndex           = 13
+cBar.Parent           = cArea
 
-local chSep = Instance.new("Frame")
-chSep.Size             = UDim2.new(1, 0, 0, 1)
-chSep.Position         = UDim2.new(0, 0, 1, -1)
-chSep.BackgroundColor3 = K.sep
-chSep.BorderSizePixel  = 0
-chSep.ZIndex           = 204
-chSep.Parent           = cHead
+local cBarSep = Instance.new("Frame")
+cBarSep.Size             = UDim2.new(1, 0, 0, 1)
+cBarSep.Position         = UDim2.new(0, 0, 1, -1)
+cBarSep.BackgroundColor3 = C.sep
+cBarSep.BorderSizePixel  = 0
+cBarSep.ZIndex           = 14
+cBarSep.Parent           = cBar
 
-cHeaderLbl = Instance.new("TextLabel")
-cHeaderLbl.Size               = UDim2.new(1, -14, 1, 0)
-cHeaderLbl.Position           = UDim2.fromOffset(12, 0)
-cHeaderLbl.BackgroundTransparency = 1
-cHeaderLbl.Text               = "Auto Kill"
-cHeaderLbl.Font               = Enum.Font.GothamBold
-cHeaderLbl.TextSize           = 10
-cHeaderLbl.TextColor3         = K.textPri
-cHeaderLbl.TextXAlignment     = Enum.TextXAlignment.Left
-cHeaderLbl.ZIndex             = 204
-cHeaderLbl.Parent             = cHead
+cTabLbl = Instance.new("TextLabel")
+cTabLbl.Size               = UDim2.new(1, -10, 1, 0)
+cTabLbl.Position           = UDim2.fromOffset(10, 0)
+cTabLbl.BackgroundTransparency = 1
+cTabLbl.Text               = "Auto Kill"
+cTabLbl.Font               = Enum.Font.GothamBold
+cTabLbl.TextSize            = 10
+cTabLbl.TextColor3          = C.pri
+cTabLbl.TextXAlignment      = Enum.TextXAlignment.Left
+cTabLbl.ZIndex              = 14
+cTabLbl.Parent              = cBar
 
--- ══════════════════════════════════════════════
+-- ═════════════════════════════════════════
 -- UI COMPONENT LIBRARY
--- ══════════════════════════════════════════════
+-- All clickable = ImageButton → no cursor
+-- ═════════════════════════════════════════
 
-local function makeTabPanel(id)
+local function mkPanel(id)
     local s = Instance.new("ScrollingFrame")
-    s.Name                 = "P_" .. id
-    s.Size                 = UDim2.new(1, 0, 1, -28)
-    s.Position             = UDim2.fromOffset(0, 28)
+    s.Name                 = "P_"..id
+    s.Size                 = UDim2.new(1, 0, 1, -24)
+    s.Position             = UDim2.fromOffset(0, 24)
     s.BackgroundTransparency = 1
     s.BorderSizePixel      = 0
     s.ScrollBarThickness   = 2
-    s.ScrollBarImageColor3 = Color3.fromRGB(65, 65, 82)
+    s.ScrollBarImageColor3 = C.borderH
     s.ScrollingDirection   = Enum.ScrollingDirection.Y
     s.CanvasSize           = UDim2.fromOffset(0, 0)
     s.AutomaticCanvasSize  = Enum.AutomaticSize.Y
     s.Visible              = false
-    s.ZIndex               = 203
+    s.ZIndex               = 13
     s.Parent               = cArea
     local l = Instance.new("UIListLayout")
-    l.SortOrder = Enum.SortOrder.LayoutOrder
-    l.Padding   = UDim.new(0, 3)
-    l.Parent    = s
+    l.SortOrder = Enum.SortOrder.LayoutOrder; l.Padding = UDim.new(0,3); l.Parent = s
     local p = Instance.new("UIPadding")
-    p.PaddingLeft = UDim.new(0,7); p.PaddingRight  = UDim.new(0,7)
-    p.PaddingTop  = UDim.new(0,7); p.PaddingBottom = UDim.new(0,7)
+    p.PaddingLeft=UDim.new(0,7); p.PaddingRight=UDim.new(0,7)
+    p.PaddingTop=UDim.new(0,6); p.PaddingBottom=UDim.new(0,6)
     p.Parent = s
     tabPanels[id] = s
     return s
 end
 
-local function mkSection(parent, title, order)
+local function mkSec(par, title, ord)
     local f = Instance.new("Frame")
-    f.Size               = UDim2.new(1,0,0,20)
+    f.Size               = UDim2.new(1,0,0,18)
     f.BackgroundTransparency = 1
-    f.LayoutOrder        = order
-    f.ZIndex             = 204
-    f.Parent             = parent
+    f.LayoutOrder        = ord
+    f.ZIndex             = 14
+    f.Parent             = par
     local l = Instance.new("TextLabel")
-    l.Size               = UDim2.new(1,0,1,0)
+    l.Size               = UDim2.fromScale(1,1)
     l.BackgroundTransparency = 1
     l.Text               = title:upper()
     l.Font               = Enum.Font.GothamBold
     l.TextSize           = 8
-    l.TextColor3         = K.secLbl
+    l.TextColor3         = C.secLbl
     l.TextXAlignment     = Enum.TextXAlignment.Left
-    l.ZIndex             = 205
+    l.ZIndex             = 15
     l.Parent             = f
     local ln = Instance.new("Frame")
     ln.Size             = UDim2.new(1,0,0,1)
     ln.Position         = UDim2.new(0,0,1,-1)
-    ln.BackgroundColor3 = K.sep
+    ln.BackgroundColor3 = C.sep
     ln.BorderSizePixel  = 0
-    ln.ZIndex           = 205
+    ln.ZIndex           = 15
     ln.Parent           = f
     return f
 end
 
-local function mkToggle(parent, opts)
-    local h = opts.sub and 44 or 32
+-- Toggle (ImageButton hit zone)
+local function mkToggle(par, opts)
+    local h = opts.sub and 40 or 30
     local card = Instance.new("Frame")
     card.Size               = UDim2.new(1,0,0,h)
-    card.BackgroundColor3   = K.card
-    card.BackgroundTransparency = 0.12
+    card.BackgroundColor3   = C.card
+    card.BackgroundTransparency = 0
     card.BorderSizePixel    = 0
-    card.LayoutOrder        = opts.order
-    card.ZIndex             = 204
-    card.Parent             = parent
-    Instance.new("UICorner",card).CornerRadius = UDim.new(0,6)
+    card.LayoutOrder        = opts.ord
+    card.ZIndex             = 14
+    card.Parent             = par
+    Instance.new("UICorner",card).CornerRadius = UDim.new(0,5)
     local tl = Instance.new("TextLabel")
-    tl.Size               = UDim2.new(1,-48,0,14)
-    tl.Position           = UDim2.fromOffset(9, opts.sub and 6 or 9)
+    tl.Size               = UDim2.new(1,-46,0,13)
+    tl.Position           = UDim2.fromOffset(8, opts.sub and 5 or 8)
     tl.BackgroundTransparency = 1
     tl.Text               = opts.title
     tl.Font               = Enum.Font.GothamSemibold
     tl.TextSize           = 10
-    tl.TextColor3         = K.textPri
+    tl.TextColor3         = C.pri
     tl.TextXAlignment     = Enum.TextXAlignment.Left
-    tl.ZIndex             = 205
+    tl.ZIndex             = 15
     tl.Parent             = card
     if opts.sub then
         local sl = Instance.new("TextLabel")
-        sl.Size               = UDim2.new(1,-48,0,11)
-        sl.Position           = UDim2.fromOffset(9,21)
+        sl.Size               = UDim2.new(1,-46,0,10)
+        sl.Position           = UDim2.fromOffset(8,19)
         sl.BackgroundTransparency = 1
         sl.Text               = opts.sub
         sl.Font               = Enum.Font.Gotham
         sl.TextSize           = 8
-        sl.TextColor3         = K.textSec
+        sl.TextColor3         = C.sec
         sl.TextXAlignment     = Enum.TextXAlignment.Left
-        sl.ZIndex             = 205
+        sl.ZIndex             = 15
         sl.Parent             = card
     end
-    local TW,TH2 = 30,16
-    local track = Instance.new("Frame")
-    track.Size             = UDim2.fromOffset(TW,TH2)
-    track.Position         = UDim2.new(1,-(TW+8),0.5,-(TH2/2))
-    track.BackgroundColor3 = opts.val and K.tOn or K.tOff
-    track.BorderSizePixel  = 0
-    track.ZIndex           = 205
-    track.Parent           = card
-    Instance.new("UICorner",track).CornerRadius = UDim.new(1,0)
+    local TW,TH2 = 28,15
+    local trk = Instance.new("Frame")
+    trk.Size             = UDim2.fromOffset(TW,TH2)
+    trk.Position         = UDim2.new(1,-(TW+7),0.5,-(TH2/2))
+    trk.BackgroundColor3 = opts.val and C.tOn or C.tOff
+    trk.BorderSizePixel  = 0
+    trk.ZIndex           = 15
+    trk.Parent           = card
+    Instance.new("UICorner",trk).CornerRadius = UDim.new(1,0)
     local KS = TH2-4
     local knob = Instance.new("Frame")
     knob.Size             = UDim2.fromOffset(KS,KS)
-    knob.Position         = opts.val and UDim2.fromOffset(TW-KS-2,2) or UDim2.fromOffset(2,2)
-    knob.BackgroundColor3 = K.white
+    knob.Position         = (opts.val and UDim2.fromOffset(TW-KS-2,2)) or UDim2.fromOffset(2,2)
+    knob.BackgroundColor3 = C.white
     knob.BorderSizePixel  = 0
-    knob.ZIndex           = 206
-    knob.Parent           = track
+    knob.ZIndex           = 16
+    knob.Parent           = trk
     Instance.new("UICorner",knob).CornerRadius = UDim.new(1,0)
-    local value = opts.val or false
+    local val = opts.val or false
     local function setV(v)
-        value = v
-        TS:Create(track,TweenInfo.new(0.13,Enum.EasingStyle.Quad),{BackgroundColor3=v and K.tOn or K.tOff}):Play()
-        TS:Create(knob, TweenInfo.new(0.13,Enum.EasingStyle.Quad),{Position=v and UDim2.fromOffset(TW-KS-2,2) or UDim2.fromOffset(2,2)}):Play()
+        val = v
+        TS:Create(trk,TweenInfo.new(0.12,Enum.EasingStyle.Quad),
+            {BackgroundColor3 = v and C.tOn or C.tOff}):Play()
+        TS:Create(knob,TweenInfo.new(0.12,Enum.EasingStyle.Quad),
+            {Position = v and UDim2.fromOffset(TW-KS-2,2) or UDim2.fromOffset(2,2)}):Play()
         if opts.cb then opts.cb(v) end
     end
-    local hit = Instance.new("TextButton")
+    -- ImageButton hit zone (never shows cursor)
+    local hit = Instance.new("ImageButton")
     hit.Size               = UDim2.fromScale(1,1)
     hit.BackgroundTransparency = 1
-    hit.Text               = ""
+    hit.Image              = ""
     hit.AutoButtonColor    = false
-    hit.Selectable         = false
-    hit.ZIndex             = 207
+    hit.ZIndex             = 17
     hit.Parent             = card
-    hit.MouseButton1Click:Connect(function() pcall(function() UIS:ReleaseFocus() end); setV(not value) end)
-    hit.MouseEnter:Connect(function() TS:Create(card,TweenInfo.new(0.10),{BackgroundColor3=K.cardHov}):Play() end)
-    hit.MouseLeave:Connect(function() TS:Create(card,TweenInfo.new(0.10),{BackgroundColor3=K.card}):Play() end)
+    hit.MouseButton1Click:Connect(function() setV(not val) end)
+    hit.MouseEnter:Connect(function()
+        TS:Create(card,TweenInfo.new(0.10),{BackgroundColor3=C.cardH}):Play()
+    end)
+    hit.MouseLeave:Connect(function()
+        TS:Create(card,TweenInfo.new(0.10),{BackgroundColor3=C.card}):Play()
+    end)
     return card, setV
 end
 
-local function mkSlider(parent, opts)
+-- Slider
+local function mkSlider(par, opts)
     local step = opts.step or 1
     local card = Instance.new("Frame")
-    card.Size               = UDim2.new(1,0,0,46)
-    card.BackgroundColor3   = K.card
-    card.BackgroundTransparency = 0.12
+    card.Size               = UDim2.new(1,0,0,42)
+    card.BackgroundColor3   = C.card
+    card.BackgroundTransparency = 0
     card.BorderSizePixel    = 0
-    card.LayoutOrder        = opts.order
-    card.ZIndex             = 204
-    card.Parent             = parent
-    Instance.new("UICorner",card).CornerRadius = UDim.new(0,6)
+    card.LayoutOrder        = opts.ord
+    card.ZIndex             = 14
+    card.Parent             = par
+    Instance.new("UICorner",card).CornerRadius = UDim.new(0,5)
     local tl = Instance.new("TextLabel")
-    tl.Size               = UDim2.new(0.58,0,0,13)
-    tl.Position           = UDim2.fromOffset(9,7)
+    tl.Size               = UDim2.new(0.6,0,0,12)
+    tl.Position           = UDim2.fromOffset(8,6)
     tl.BackgroundTransparency = 1
     tl.Text               = opts.title
     tl.Font               = Enum.Font.GothamSemibold
-    tl.TextSize           = 10
-    tl.TextColor3         = K.textPri
-    tl.TextXAlignment     = Enum.TextXAlignment.Left
-    tl.ZIndex             = 205
-    tl.Parent             = card
-    local defStr = (step < 1) and string.format("%.1f", opts.def) or tostring(math.floor(opts.def))
+    tl.TextSize            = 10
+    tl.TextColor3          = C.pri
+    tl.TextXAlignment      = Enum.TextXAlignment.Left
+    tl.ZIndex              = 15
+    tl.Parent              = card
+    local rng = math.max(0.001, opts.max - opts.min)
+    local pct = (opts.def - opts.min) / rng
+    local defStr = step < 1 and string.format("%.1f",opts.def) or tostring(math.floor(opts.def))
     local vl = Instance.new("TextLabel")
-    vl.Size               = UDim2.new(0.42,-9,0,13)
-    vl.Position           = UDim2.new(0.58,0,0,7)
+    vl.Size               = UDim2.new(0.4,-8,0,12)
+    vl.Position           = UDim2.new(0.6,0,0,6)
     vl.BackgroundTransparency = 1
     vl.Text               = defStr .. (opts.suf or "")
     vl.Font               = Enum.Font.GothamBold
-    vl.TextSize           = 10
-    vl.TextColor3         = K.textPri
-    vl.TextXAlignment     = Enum.TextXAlignment.Right
-    vl.ZIndex             = 205
-    vl.Parent             = card
-    local track = Instance.new("Frame")
-    track.Name             = "Tr"
-    track.Size             = UDim2.new(1,-18,0,4)
-    track.Position         = UDim2.fromOffset(9,27)
-    track.BackgroundColor3 = K.slTrack
-    track.BorderSizePixel  = 0
-    track.ZIndex           = 205
-    track.Parent           = card
-    Instance.new("UICorner",track).CornerRadius = UDim.new(1,0)
-    local rng = math.max(0.001, opts.max - opts.min)
-    local pct = (opts.def - opts.min) / rng
+    vl.TextSize            = 10
+    vl.TextColor3          = C.pri
+    vl.TextXAlignment      = Enum.TextXAlignment.Right
+    vl.ZIndex              = 15
+    vl.Parent              = card
+    local trk = Instance.new("Frame")
+    trk.Name             = "Tr"
+    trk.Size             = UDim2.new(1,-16,0,4)
+    trk.Position         = UDim2.fromOffset(8,25)
+    trk.BackgroundColor3 = C.trkBg
+    trk.BorderSizePixel  = 0
+    trk.ZIndex           = 15
+    trk.Parent           = card
+    Instance.new("UICorner",trk).CornerRadius = UDim.new(1,0)
     local fill = Instance.new("Frame")
     fill.Size             = UDim2.new(pct,0,1,0)
-    fill.BackgroundColor3 = K.slFill
+    fill.BackgroundColor3 = C.trkFill
     fill.BorderSizePixel  = 0
-    fill.ZIndex           = 206
-    fill.Parent           = track
+    fill.ZIndex           = 16
+    fill.Parent           = trk
     Instance.new("UICorner",fill).CornerRadius = UDim.new(1,0)
-    local KD = 11
+    local KD = 10
     local knob = Instance.new("Frame")
     knob.Size             = UDim2.fromOffset(KD,KD)
     knob.Position         = UDim2.new(pct,-KD/2,0.5,-KD/2)
-    knob.BackgroundColor3 = K.white
+    knob.BackgroundColor3 = C.white
     knob.BorderSizePixel  = 0
-    knob.ZIndex           = 207
-    knob.Parent           = track
+    knob.ZIndex           = 17
+    knob.Parent           = trk
     Instance.new("UICorner",knob).CornerRadius = UDim.new(1,0)
-    local value  = opts.def
+    local value = opts.def
     local isDrag = false
     local function updX(ax)
-        local ta = track.AbsolutePosition
-        local ts = track.AbsoluteSize
+        local ta = trk.AbsolutePosition
+        local ts = trk.AbsoluteSize
         if ts.X < 1 then return end
-        local rel = math.clamp((ax - ta.X) / ts.X, 0, 1)
-        value = math.floor((opts.min + rel * rng) / step + 0.5) * step
+        local rel = math.clamp((ax-ta.X)/ts.X,0,1)
+        value = math.floor((opts.min + rel*rng)/step+0.5)*step
         value = math.clamp(value, opts.min, opts.max)
-        local p = (value - opts.min) / rng
+        local p = (value-opts.min)/rng
         fill.Size     = UDim2.new(p,0,1,0)
         knob.Position = UDim2.new(p,-KD/2,0.5,-KD/2)
-        local disp = (step < 1) and string.format("%.1f",value) or tostring(math.floor(value))
-        vl.Text = disp .. (opts.suf or "")
+        local disp = step<1 and string.format("%.1f",value) or tostring(math.floor(value))
+        vl.Text = disp..(opts.suf or "")
         if opts.cb then opts.cb(value) end
     end
-    local hit = Instance.new("TextButton")
+    -- ImageButton hit zone
+    local hit = Instance.new("ImageButton")
     hit.Size               = UDim2.fromScale(1,1)
     hit.BackgroundTransparency = 1
-    hit.Text               = ""
+    hit.Image              = ""
     hit.AutoButtonColor    = false
-    hit.Selectable         = false
-    hit.ZIndex             = 208
-    hit.Parent             = track
-    hit.MouseButton1Down:Connect(function(x,_) isDrag=true; updX(x) end)
+    hit.ZIndex             = 18
+    hit.Parent             = trk
+    hit.MouseButton1Down:Connect(function(x) isDrag=true; updX(x) end)
     hit.TouchLongPress:Connect(function() isDrag=true end)
-    hit.TouchPan:Connect(function(_,pos,_) if isDrag and pos[1] then updX(pos[1].X) end end)
+    hit.TouchPan:Connect(function(_,pos) if isDrag and pos[1] then updX(pos[1].X) end end)
     UIS.InputChanged:Connect(function(inp)
         if not isDrag then return end
-        if inp.UserInputType == Enum.UserInputType.MouseMovement
-        or inp.UserInputType == Enum.UserInputType.Touch then updX(inp.Position.X) end
+        if inp.UserInputType==Enum.UserInputType.MouseMovement
+        or inp.UserInputType==Enum.UserInputType.Touch then updX(inp.Position.X) end
     end)
     UIS.InputEnded:Connect(function(inp)
-        if inp.UserInputType == Enum.UserInputType.MouseButton1
-        or inp.UserInputType == Enum.UserInputType.Touch then isDrag=false end
+        if inp.UserInputType==Enum.UserInputType.MouseButton1
+        or inp.UserInputType==Enum.UserInputType.Touch then isDrag=false end
     end)
     return card
 end
 
-local function mkDropdown(parent, opts)
-    local IH   = 24
-    local listH = #opts.options * IH + 4
-    local card = Instance.new("Frame")
-    card.Size               = UDim2.new(1,0,0,36)
-    card.BackgroundColor3   = K.card
-    card.BackgroundTransparency = 0.12
+-- Dropdown
+local function mkDrop(par, opts)
+    local IH    = 22
+    local listH = #opts.opts * IH + 4
+    local card  = Instance.new("Frame")
+    card.Size               = UDim2.new(1,0,0,32)
+    card.BackgroundColor3   = C.card
+    card.BackgroundTransparency = 0
     card.BorderSizePixel    = 0
-    card.LayoutOrder        = opts.order
+    card.LayoutOrder        = opts.ord
     card.ClipsDescendants   = false
-    card.ZIndex             = 210
-    card.Parent             = parent
-    Instance.new("UICorner",card).CornerRadius = UDim.new(0,6)
+    card.ZIndex             = 20
+    card.Parent             = par
+    Instance.new("UICorner",card).CornerRadius = UDim.new(0,5)
     local tl = Instance.new("TextLabel")
-    tl.Size               = UDim2.new(0.44,0,0,13)
-    tl.Position           = UDim2.fromOffset(9,11)
+    tl.Size               = UDim2.new(0.46,0,0,12)
+    tl.Position           = UDim2.fromOffset(8,10)
     tl.BackgroundTransparency = 1
     tl.Text               = opts.title
     tl.Font               = Enum.Font.GothamSemibold
-    tl.TextSize           = 10
-    tl.TextColor3         = K.textPri
-    tl.TextXAlignment     = Enum.TextXAlignment.Left
-    tl.ZIndex             = 211
-    tl.Parent             = card
-    local selBtn = Instance.new("TextButton")
-    selBtn.Size               = UDim2.new(0.55,-6,0,22)
-    selBtn.Position           = UDim2.new(0.45,0,0.5,-11)
-    selBtn.BackgroundColor3   = Color3.fromRGB(18,18,24)
-    selBtn.BackgroundTransparency = 0
-    selBtn.BorderSizePixel    = 0
-    selBtn.Text               = opts.def or opts.options[1]
-    selBtn.Font               = Enum.Font.GothamSemibold
-    selBtn.TextSize           = 9
-    selBtn.TextColor3         = K.textPri
-    selBtn.AutoButtonColor    = false
-    selBtn.Selectable         = false
-    selBtn.ZIndex             = 211
-    selBtn.Parent             = card
-    Instance.new("UICorner",selBtn).CornerRadius = UDim.new(0,5)
-    local sbS = Instance.new("UIStroke",selBtn)
-    sbS.Color = K.border; sbS.Thickness = 1
-    local chev = Instance.new("TextLabel")
-    chev.Size               = UDim2.fromOffset(12,22)
-    chev.Position           = UDim2.new(1,-14,0,0)
-    chev.BackgroundTransparency = 1
-    chev.Text               = "v"
-    chev.Font               = Enum.Font.GothamBold
-    chev.TextSize           = 7
-    chev.TextColor3         = K.textSec
-    chev.ZIndex             = 212
-    chev.Parent             = selBtn
-    local dropL = Instance.new("Frame")
-    dropL.Size             = UDim2.fromOffset(10, listH)
-    dropL.Position         = UDim2.new(selBtn.Position.X.Scale, selBtn.Position.X.Offset, 1, 2)
-    dropL.BackgroundColor3 = Color3.fromRGB(18,18,24)
-    dropL.BackgroundTransparency = 0
-    dropL.BorderSizePixel  = 0
-    dropL.Visible          = false
-    dropL.ZIndex           = 220
-    dropL.Parent           = card
-    Instance.new("UICorner",dropL).CornerRadius = UDim.new(0,6)
-    local dlS = Instance.new("UIStroke",dropL)
-    dlS.Color = K.border; dlS.Thickness = 1
+    tl.TextSize            = 10
+    tl.TextColor3          = C.pri
+    tl.TextXAlignment      = Enum.TextXAlignment.Left
+    tl.ZIndex              = 21
+    tl.Parent              = card
+    -- selector ImageButton
+    local sel = Instance.new("ImageButton")
+    sel.Size               = UDim2.new(0.52,-6,0,22)
+    sel.Position           = UDim2.new(0.48,0,0.5,-11)
+    sel.BackgroundColor3   = C.trkBg
+    sel.BackgroundTransparency = 0
+    sel.BorderSizePixel    = 0
+    sel.Image              = ""
+    sel.AutoButtonColor    = false
+    sel.ZIndex             = 21
+    sel.Parent             = card
+    Instance.new("UICorner",sel).CornerRadius = UDim.new(0,4)
+    local selL = Instance.new("TextLabel")
+    selL.Size               = UDim2.new(1,-14,1,0)
+    selL.Position           = UDim2.fromOffset(6,0)
+    selL.BackgroundTransparency = 1
+    selL.Text               = opts.def or opts.opts[1]
+    selL.Font               = Enum.Font.GothamSemibold
+    selL.TextSize            = 9
+    selL.TextColor3          = C.pri
+    selL.TextXAlignment      = Enum.TextXAlignment.Left
+    selL.ZIndex              = 22
+    selL.Parent              = sel
+    local chv = Instance.new("TextLabel")
+    chv.Size               = UDim2.fromOffset(12,22)
+    chv.Position           = UDim2.new(1,-13,0,0)
+    chv.BackgroundTransparency = 1
+    chv.Text               = "v"
+    chv.Font               = Enum.Font.GothamBold
+    chv.TextSize            = 7
+    chv.TextColor3          = C.sec
+    chv.ZIndex              = 22
+    chv.Parent              = sel
+    local dList = Instance.new("Frame")
+    dList.Size             = UDim2.fromOffset(10, listH)
+    dList.Position         = UDim2.new(sel.Position.X.Scale, sel.Position.X.Offset, 1, 2)
+    dList.BackgroundColor3 = C.trkBg
+    dList.BackgroundTransparency = 0
+    dList.BorderSizePixel  = 0
+    dList.Visible          = false
+    dList.ZIndex           = 30
+    dList.Parent           = card
+    Instance.new("UICorner",dList).CornerRadius = UDim.new(0,5)
+    local dlS = Instance.new("UIStroke",dList); dlS.Color=C.border; dlS.Thickness=1
     local dlL = Instance.new("UIListLayout")
-    dlL.SortOrder = Enum.SortOrder.LayoutOrder; dlL.Parent = dropL
+    dlL.SortOrder = Enum.SortOrder.LayoutOrder; dlL.Parent = dList
     local dlP = Instance.new("UIPadding")
     dlP.PaddingTop=UDim.new(0,2); dlP.PaddingBottom=UDim.new(0,2)
-    dlP.PaddingLeft=UDim.new(0,2); dlP.PaddingRight=UDim.new(0,2)
-    dlP.Parent = dropL
+    dlP.PaddingLeft=UDim.new(0,2); dlP.PaddingRight=UDim.new(0,2); dlP.Parent=dList
     local isOpen = false
-    local selected = opts.def or opts.options[1]
-    local function closeDD() isOpen=false; dropL.Visible=false end
+    local selected = opts.def or opts.opts[1]
+    local function closeDD() isOpen=false; dList.Visible=false end
     local function openDD()
-        local sw = selBtn.AbsoluteSize.X
-        dropL.Size = UDim2.fromOffset(math.max(sw, 80), listH)
-        isOpen=true; dropL.Visible=true
+        dList.Size = UDim2.fromOffset(math.max(sel.AbsoluteSize.X, 90), listH)
+        isOpen=true; dList.Visible=true
     end
-    for i, opt in ipairs(opts.options) do
-        local o   = opt
-        local itm = Instance.new("TextButton")
+    for i, opt in ipairs(opts.opts) do
+        local o = opt
+        local itm = Instance.new("ImageButton")
         itm.Size               = UDim2.new(1,0,0,IH)
-        itm.BackgroundColor3   = Color3.fromRGB(18,18,24)
+        itm.BackgroundColor3   = C.trkBg
         itm.BackgroundTransparency = 0
         itm.BorderSizePixel    = 0
-        itm.Text               = o
-        itm.Font               = Enum.Font.GothamSemibold
-        itm.TextSize           = 9
-        itm.TextColor3         = K.textPri
-        itm.LayoutOrder        = i
+        itm.Image              = ""
         itm.AutoButtonColor    = false
-        itm.Selectable         = false
-        itm.ZIndex             = 221
-        itm.Parent             = dropL
-        Instance.new("UICorner",itm).CornerRadius = UDim.new(0,4)
-        local ip = Instance.new("UIPadding"); ip.PaddingLeft=UDim.new(0,7); ip.Parent=itm
-        itm.MouseEnter:Connect(function() itm.BackgroundColor3=K.cardHov end)
-        itm.MouseLeave:Connect(function() itm.BackgroundColor3=Color3.fromRGB(18,18,24) end)
+        itm.LayoutOrder        = i
+        itm.ZIndex             = 31
+        itm.Parent             = dList
+        Instance.new("UICorner",itm).CornerRadius = UDim.new(0,3)
+        local il = Instance.new("TextLabel")
+        il.Size               = UDim2.fromScale(1,1)
+        il.BackgroundTransparency = 1
+        il.Text               = o
+        il.Font               = Enum.Font.GothamSemibold
+        il.TextSize            = 9
+        il.TextColor3          = C.pri
+        il.TextXAlignment      = Enum.TextXAlignment.Left
+        il.ZIndex              = 32
+        il.Parent              = itm
+        local ip = Instance.new("UIPadding"); ip.PaddingLeft=UDim.new(0,6); ip.Parent=il
+        itm.MouseEnter:Connect(function() itm.BackgroundColor3=C.cardH end)
+        itm.MouseLeave:Connect(function() itm.BackgroundColor3=C.trkBg end)
         itm.MouseButton1Click:Connect(function()
-            pcall(function() UIS:ReleaseFocus() end)
-            selected=o; selBtn.Text=o; closeDD()
+            selected=o; selL.Text=o; closeDD()
             if opts.cb then opts.cb(o) end
         end)
     end
-    selBtn.MouseButton1Click:Connect(function()
-        pcall(function() UIS:ReleaseFocus() end)
+    sel.MouseButton1Click:Connect(function()
         if isOpen then closeDD() else openDD() end
     end)
     return card, function() return selected end
 end
 
-local function mkButton(parent, opts)
-    local h = opts.sub and 42 or 30
-    local btn = Instance.new("TextButton")
+-- Button (ImageButton)
+local function mkBtn(par, opts)
+    local h = opts.sub and 38 or 28
+    local btn = Instance.new("ImageButton")
     btn.Size               = UDim2.new(1,0,0,h)
-    btn.BackgroundColor3   = K.btnBG
+    btn.BackgroundColor3   = C.card
     btn.BackgroundTransparency = 0
     btn.BorderSizePixel    = 0
-    btn.Text               = ""
-    btn.LayoutOrder        = opts.order
+    btn.Image              = ""
     btn.AutoButtonColor    = false
-    btn.Selectable         = false
-    btn.ZIndex             = 204
-    btn.Parent             = parent
-    Instance.new("UICorner",btn).CornerRadius = UDim.new(0,6)
-    local bS = Instance.new("UIStroke",btn)
-    bS.Color = K.border; bS.Thickness = 1
+    btn.LayoutOrder        = opts.ord
+    btn.ZIndex             = 14
+    btn.Parent             = par
+    Instance.new("UICorner",btn).CornerRadius = UDim.new(0,5)
+    local bS = Instance.new("UIStroke",btn); bS.Color=C.border; bS.Thickness=1
     local lbl = Instance.new("TextLabel")
-    lbl.Size               = UDim2.new(1,-12,0,14)
-    lbl.Position           = UDim2.fromOffset(9, opts.sub and 6 or 8)
+    lbl.Size               = UDim2.new(1,-10,0,13)
+    lbl.Position           = UDim2.fromOffset(8, opts.sub and 5 or 7)
     lbl.BackgroundTransparency = 1
     lbl.Text               = opts.title
     lbl.Font               = Enum.Font.GothamBold
-    lbl.TextSize           = 10
-    lbl.TextColor3         = K.textPri
-    lbl.TextXAlignment     = Enum.TextXAlignment.Left
-    lbl.ZIndex             = 205
-    lbl.Parent             = btn
+    lbl.TextSize            = 10
+    lbl.TextColor3          = C.pri
+    lbl.TextXAlignment      = Enum.TextXAlignment.Left
+    lbl.ZIndex              = 15
+    lbl.Parent              = btn
     if opts.sub then
         local sl = Instance.new("TextLabel")
-        sl.Size               = UDim2.new(1,-12,0,10)
-        sl.Position           = UDim2.fromOffset(9,23)
+        sl.Size               = UDim2.new(1,-10,0,10)
+        sl.Position           = UDim2.fromOffset(8,20)
         sl.BackgroundTransparency = 1
         sl.Text               = opts.sub
         sl.Font               = Enum.Font.Gotham
-        sl.TextSize           = 8
-        sl.TextColor3         = K.textSec
-        sl.TextXAlignment     = Enum.TextXAlignment.Left
-        sl.ZIndex             = 205
-        sl.Parent             = btn
+        sl.TextSize            = 8
+        sl.TextColor3          = C.sec
+        sl.TextXAlignment      = Enum.TextXAlignment.Left
+        sl.ZIndex              = 15
+        sl.Parent              = btn
     end
     btn.MouseButton1Click:Connect(function()
-        pcall(function() UIS:ReleaseFocus() end)
-        TS:Create(btn,TweenInfo.new(0.07),{BackgroundColor3=K.btnPre}):Play()
-        task.delay(0.14,function() TS:Create(btn,TweenInfo.new(0.10),{BackgroundColor3=K.btnBG}):Play() end)
+        TS:Create(btn,TweenInfo.new(0.08),{BackgroundColor3=C.cardH}):Play()
+        task.delay(0.15,function() TS:Create(btn,TweenInfo.new(0.10),{BackgroundColor3=C.card}):Play() end)
         if opts.cb then opts.cb() end
     end)
-    btn.MouseEnter:Connect(function() TS:Create(btn,TweenInfo.new(0.10),{BackgroundColor3=K.btnHov}):Play() end)
-    btn.MouseLeave:Connect(function() TS:Create(btn,TweenInfo.new(0.10),{BackgroundColor3=K.btnBG}):Play() end)
+    btn.MouseEnter:Connect(function() TS:Create(btn,TweenInfo.new(0.10),{BackgroundColor3=C.cardH}):Play() end)
+    btn.MouseLeave:Connect(function() TS:Create(btn,TweenInfo.new(0.10),{BackgroundColor3=C.card}):Play() end)
     return btn
 end
 
-local function mkDiv(parent, order)
+local function mkDiv(par, ord)
     local f = Instance.new("Frame")
     f.Size             = UDim2.new(1,0,0,1)
-    f.BackgroundColor3 = K.sep
-    f.BackgroundTransparency = 0.35
+    f.BackgroundColor3 = C.sep
+    f.BackgroundTransparency = 0.3
     f.BorderSizePixel  = 0
-    f.LayoutOrder      = order
-    f.ZIndex           = 204
-    f.Parent           = parent
+    f.LayoutOrder      = ord
+    f.ZIndex           = 14
+    f.Parent           = par
     return f
 end
 
--- ══════════════════════════════════════════════
--- BUILD PANELS
--- ══════════════════════════════════════════════
-for _, def in ipairs(TAB_DEFS) do makeTabPanel(def.id) end
+-- ═════════════════════════════════════════
+-- CREATE PANELS + FILL CONTENT
+-- ═════════════════════════════════════════
+for _, d in ipairs(TABS) do mkPanel(d.id) end
 
--- ── AUTO KILL ────────────────────────────────
-local ak = tabPanels["AutoKill"]
+-- ── AUTO KILL ───────────────────────────
+local kp = tabPanels["Kill"]
 local _o = 0; local function o() _o=_o+1; return _o end
 
-mkSection(ak, "Target", o())
-mkDropdown(ak, {title="Select Target", options=playerNames(), def="None", order=o(), cb=function(v)
-    S.target = (v=="None") and nil or Players:FindFirstChild(v)
+mkSec(kp,"Target",o())
+mkDrop(kp,{title="Select Target",opts=pNames(),def="None",ord=o(),cb=function(v)
+    S.target = v=="None" and nil or Players:FindFirstChild(v)
 end})
 
-mkSection(ak, "Follow Mode", o())
-mkDropdown(ak, {title="Mode", options={"HEAD","ORBIT","FEET"}, def="HEAD", order=o(), cb=function(v)
-    S.followMode=v; _orbit=0
+mkSec(kp,"Follow",o())
+mkDrop(kp,{title="Mode",opts={"HEAD","ORBIT","FEET"},def="HEAD",ord=o(),cb=function(v)
+    S.mode=v; orbit=0
 end})
-mkSlider(ak, {title="Stud Distance", min=1, max=20, def=3,  suf=" st", step=0.5, order=o(), cb=function(v) S.studDist=v end})
-mkSlider(ak, {title="Follow Speed",  min=5, max=100,def=20, suf="",   step=1,   order=o(), cb=function(v) S.followSpeed=v end})
+mkSlider(kp,{title="Stud Distance",min=1,max=20,def=3,suf=" st",step=0.5,ord=o(),cb=function(v) S.dist=v end})
+mkSlider(kp,{title="Follow Speed",min=5,max=100,def=20,suf="",step=1,ord=o(),cb=function(v) S.speed=v end})
 
-mkSection(ak, "Auto Attack", o())
-mkToggle(ak, {title="Auto Tap", sub="Tap attack buttons automatically", val=false, order=o(), cb=function(v)
-    S.autoTapOn=v
-    if v and not autoTapAlive then autoTapAlive=true; task.spawn(tapLoop)
-    else autoTapAlive=false end
+mkSec(kp,"Attack",o())
+mkToggle(kp,{title="Auto Tap",sub="Auto click attack buttons",val=false,ord=o(),cb=function(v)
+    S.tapOn=v
+    if v and not tapAlive then tapAlive=true; task.spawn(tapLoop) else tapAlive=false end
 end})
-mkSlider(ak, {title="Tap Delay", min=0.05, max=2, def=0.2, suf="s", step=0.05, order=o(), cb=function(v) S.tapDelay=v end})
-mkDropdown(ak, {title="Attack Skill", options={"Pukulan Biasa","Pukulan Berurutan","Dorong","Uppercut"}, def="Pukulan Biasa", order=o(), cb=function(v) S.tapSkill=v end})
+mkSlider(kp,{title="Tap Delay",min=0.05,max=2,def=0.2,suf="s",step=0.05,ord=o(),cb=function(v) S.tapDelay=v end})
+mkDrop(kp,{title="Skill",opts={"Pukulan Biasa","Pukulan Berurutan","Dorong","Uppercut"},def="Pukulan Biasa",ord=o(),cb=function(v) S.tapSkill=v end})
 
-mkSection(ak, "Actions", o())
-mkToggle(ak, {title="Follow Target", sub="Stick to selected target", val=false, order=o(), cb=function(v)
+mkSec(kp,"Actions",o())
+mkToggle(kp,{title="Follow Target",sub="Stick to selected target",val=false,ord=o(),cb=function(v)
     S.followOn=v; if not v then pcall(function() Cam.CameraType=Enum.CameraType.Custom end) end
 end})
-mkToggle(ak, {title="Solo Hacker", sub="Follow all players", val=false, order=o(), cb=function(v) S.soloHacker=v end})
-mkToggle(ak, {title="Drag Hold", sub="Pull targets to your position", val=false, order=o(), cb=function(v) S.dragHold=v end})
-mkToggle(ak, {title="Cam Lock", sub="Camera locks onto target", val=false, order=o(), cb=function(v)
+mkToggle(kp,{title="Solo Hacker",sub="Follow all players",val=false,ord=o(),cb=function(v) S.soloHacker=v end})
+mkToggle(kp,{title="Drag Hold",sub="Pull targets to your position",val=false,ord=o(),cb=function(v) S.dragHold=v end})
+mkToggle(kp,{title="Cam Lock",sub="Lock camera on target",val=false,ord=o(),cb=function(v)
     S.camLock=v; if not v then pcall(function() Cam.CameraType=Enum.CameraType.Custom end) end
 end})
-mkSlider(ak, {title="Cam Distance", min=5, max=80, def=12, suf=" st", step=1, order=o(), cb=function(v)
+mkSlider(kp,{title="Cam Distance",min=5,max=80,def=12,suf=" st",step=1,ord=o(),cb=function(v)
     S.camDist=v; pcall(function() LP.CameraMaxZoomDistance=v; LP.CameraMinZoomDistance=v end)
 end})
-mkToggle(ak, {title="Anti Void", sub="Rescue if character falls below -250Y", val=false, order=o(), cb=function(v) S.antiVoid=v end})
+mkToggle(kp,{title="Anti Void",sub="Rescue below -250Y",val=false,ord=o(),cb=function(v) S.antiVoid=v end})
 
-mkDiv(ak, o())
-mkButton(ak, {title="Stop All Combat", sub="Disable every follow and lock feature", order=o(), cb=function()
+mkDiv(kp,o())
+mkBtn(kp,{title="Stop All Combat",sub="Disable all follow and lock",ord=o(),cb=function()
     S.followOn=false; S.soloHacker=false; S.dragHold=false
     S.camLock=false; S.antiVoid=false; S.target=nil
     pcall(function() Cam.CameraType=Enum.CameraType.Custom end)
 end})
-mkButton(ak, {title="Teleport to Target", order=o(), cb=function()
+mkBtn(kp,{title="Teleport to Target",ord=o(),cb=function()
     if not S.target then return end
-    local c=S.target.Character; local tH=c and c:FindFirstChild("HumanoidRootPart")
-    if tH and hrp then pcall(function() hrp.CFrame=tH.CFrame+Vector3.new(3,0,0) end) end
+    local th = getHRP()
+    if th and hrp then pcall(function() hrp.CFrame=th.CFrame+Vector3.new(3,0,0) end) end
 end})
 
--- ── MOVEMENT ─────────────────────────────────
-local mv = tabPanels["Movement"]
+-- ── MOVEMENT ────────────────────────────
+local mp = tabPanels["Move"]
 local _m = 0; local function m() _m=_m+1; return _m end
 
-mkSection(mv, "Speed", m())
-mkToggle(mv, {title="Speed Boost", sub="TP-walk in move direction", val=false, order=m(), cb=function(v) S.speedOn=v end})
-mkSlider(mv, {title="Boost Value", min=0.1, max=10, def=1.5, suf="x", step=0.1, order=m(), cb=function(v) S.speedVal=v end})
-mkToggle(mv, {title="Walkspeed Lock", sub="Force Humanoid.WalkSpeed", val=false, order=m(), cb=function(v)
+mkSec(mp,"Speed",m())
+mkToggle(mp,{title="Speed Boost",sub="TP-walk on move",val=false,ord=m(),cb=function(v) S.speedOn=v end})
+mkSlider(mp,{title="Boost Value",min=0.1,max=10,def=1.5,suf="x",step=0.1,ord=m(),cb=function(v) S.speedVal=v end})
+mkToggle(mp,{title="Walkspeed Lock",sub="Force Humanoid.WalkSpeed",val=false,ord=m(),cb=function(v)
     S.wsOn=v; if not v and hum then pcall(function() hum.WalkSpeed=16 end) end
 end})
-mkSlider(mv, {title="Walkspeed", min=0, max=500, def=16, suf="", step=1, order=m(), cb=function(v)
-    S.walkspeed=v; if hum then pcall(function() hum.WalkSpeed=v end) end
+mkSlider(mp,{title="Walkspeed",min=0,max=500,def=16,suf="",step=1,ord=m(),cb=function(v)
+    S.ws=v; if hum then pcall(function() hum.WalkSpeed=v end) end
 end})
-
-mkSection(mv, "Jump", m())
-mkToggle(mv, {title="Jump Boost", sub="Override jump height", val=false, order=m(), cb=function(v)
+mkSec(mp,"Jump",m())
+mkToggle(mp,{title="Jump Boost",sub="Override jump height",val=false,ord=m(),cb=function(v)
     S.jumpOn=v; if hum then pcall(function() hum.UseJumpPower=not v end) end
 end})
-mkSlider(mv, {title="Jump Height", min=7, max=500, def=50, suf="", step=1, order=m(), cb=function(v)
+mkSlider(mp,{title="Jump Height",min=7,max=500,def=50,suf="",step=1,ord=m(),cb=function(v)
     S.jumpVal=v; if hum then pcall(function() hum.JumpHeight=v end) end
 end})
-
-mkSection(mv, "World", m())
-mkSlider(mv, {title="Gravity",    min=0,  max=200, def=196,step=1, order=m(), cb=function(v) pcall(function() workspace.Gravity=v end) end})
-mkSlider(mv, {title="Field of View", min=30, max=120, def=70, step=1, order=m(), cb=function(v) pcall(function() Cam.FieldOfView=v end) end})
-
-mkDiv(mv, m())
-mkButton(mv, {title="Reset All Movement", order=m(), cb=function()
+mkSec(mp,"World",m())
+mkSlider(mp,{title="Gravity",min=0,max=200,def=196,suf="",step=1,ord=m(),cb=function(v)
+    pcall(function() workspace.Gravity=v end)
+end})
+mkSlider(mp,{title="FOV",min=30,max=120,def=70,suf="",step=1,ord=m(),cb=function(v)
+    pcall(function() Cam.FieldOfView=v end)
+end})
+mkDiv(mp,m())
+mkBtn(mp,{title="Reset All",ord=m(),cb=function()
     S.speedOn=false; S.wsOn=false; S.jumpOn=false
     if hum then pcall(function() hum.WalkSpeed=16; hum.JumpHeight=7.2; hum.UseJumpPower=false end) end
     pcall(function() workspace.Gravity=196.2; Cam.FieldOfView=70 end)
 end})
 
--- ── EXPLOITS ─────────────────────────────────
-local ex = tabPanels["Exploits"]
+-- ── EXPLOITS ────────────────────────────
+local ep = tabPanels["Exploit"]
 local _e = 0; local function e() _e=_e+1; return _e end
 
-mkSection(ex, "TSB Attributes", e())
-mkToggle(ex, {title="No Dash Cooldown", sub="workspace NoDashCooldown = true", val=false, order=e(), cb=function(v)
-    S.noDashCD=v; pcall(function() workspace:SetAttribute("NoDashCooldown",v) end)
+mkSec(ep,"TSB Attributes",e())
+mkToggle(ep,{title="No Dash Cooldown",sub="workspace NoDashCooldown",val=false,ord=e(),cb=function(v)
+    S.noDash=v; pcall(function() workspace:SetAttribute("NoDashCooldown",v) end)
 end})
-mkToggle(ex, {title="No Fatigue", sub="workspace NoFatigue = true", val=false, order=e(), cb=function(v)
+mkToggle(ep,{title="No Fatigue",sub="workspace NoFatigue",val=false,ord=e(),cb=function(v)
     S.noFatigue=v; pcall(function() workspace:SetAttribute("NoFatigue",v) end)
 end})
-
-mkSection(ex, "Emotes", e())
-mkToggle(ex, {title="Extra Emote Slots", sub="LocalPlayer ExtraSlots = true", val=false, order=e(), cb=function(v)
+mkSec(ep,"Emotes",e())
+mkToggle(ep,{title="Extra Emote Slots",val=false,ord=e(),cb=function(v)
     S.extraSlots=v; pcall(function() LP:SetAttribute("ExtraSlots",v) end)
 end})
-mkToggle(ex, {title="Emote Search Bar", sub="LocalPlayer EmoteSearchBar = true", val=false, order=e(), cb=function(v)
+mkToggle(ep,{title="Emote Search Bar",val=false,ord=e(),cb=function(v)
     S.emoteSearch=v; pcall(function() LP:SetAttribute("EmoteSearchBar",v) end)
 end})
-
-mkSection(ex, "Server", e())
-mkButton(ex, {title="Spoof VIP Owner", sub="Sets VIPServer to your UserId", order=e(), cb=function()
-    pcall(function() workspace:SetAttribute("VIPServer",tostring(LP.UserId)); workspace:SetAttribute("VIPServerOwner",LP.Name) end)
+mkSec(ep,"Server",e())
+mkBtn(ep,{title="Spoof VIP Owner",sub="Sets VIPServer to your UserId",ord=e(),cb=function()
+    pcall(function()
+        workspace:SetAttribute("VIPServer",tostring(LP.UserId))
+        workspace:SetAttribute("VIPServerOwner",LP.Name)
+    end)
 end})
-mkButton(ex, {title="Apply All Attributes", order=e(), cb=function()
-    initTSB()
-    pcall(function() workspace:SetAttribute("NoDashCooldown",S.noDashCD); workspace:SetAttribute("NoFatigue",S.noFatigue) end)
-    pcall(function() LP:SetAttribute("ExtraSlots",S.extraSlots); LP:SetAttribute("EmoteSearchBar",S.emoteSearch) end)
-end})
+mkBtn(ep,{title="Apply All Attributes",ord=e(),cb=initTSB})
 
--- ── TELEPORT ─────────────────────────────────
-local tp = tabPanels["Teleport"]
+-- ── TELEPORT ────────────────────────────
+local tpp = tabPanels["Teleport"]
 local _t = 0; local function t() _t=_t+1; return _t end
 
-mkSection(tp, "Map Locations", t())
+mkSec(tpp,"Map Locations",t())
 local LOCS = {
-    {"Middle",             CFrame.new(148,441,27)},
-    {"Atomic Room",        CFrame.new(1079,155,23003)},
-    {"Death Counter Room", CFrame.new(-92,29,20347)},
-    {"Baseplate",          CFrame.new(968,20,23088)},
-    {"Mountain 1",         CFrame.new(266,699,458)},
-    {"Mountain 2",         CFrame.new(551,630,-265)},
-    {"Mountain 3",         CFrame.new(-107,642,-328)},
+    {"Middle",         CFrame.new(148,441,27)},
+    {"Atomic Room",    CFrame.new(1079,155,23003)},
+    {"Death Counter",  CFrame.new(-92,29,20347)},
+    {"Baseplate",      CFrame.new(968,20,23088)},
+    {"Mountain 1",     CFrame.new(266,699,458)},
+    {"Mountain 2",     CFrame.new(551,630,-265)},
+    {"Mountain 3",     CFrame.new(-107,642,-328)},
 }
 for _, loc in ipairs(LOCS) do
     local cf = loc[2]
-    mkButton(tp, {title=loc[1], order=t(), cb=function()
+    mkBtn(tpp,{title=loc[1],ord=t(),cb=function()
         if hrp then pcall(function() hrp.CFrame=cf end) end
     end})
 end
-
-mkSection(tp, "Player Teleport", t())
-mkButton(tp, {title="Teleport to Target", sub="Select target in Auto Kill tab first", order=t(), cb=function()
+mkSec(tpp,"Player Teleport",t())
+mkBtn(tpp,{title="Teleport to Target",sub="Select target in Auto Kill first",ord=t(),cb=function()
     if not S.target then return end
-    local c=S.target.Character; local tH=c and c:FindFirstChild("HumanoidRootPart")
-    if tH and hrp then pcall(function() hrp.CFrame=tH.CFrame+Vector3.new(3,0,0) end) end
+    local th = getHRP()
+    if th and hrp then pcall(function() hrp.CFrame=th.CFrame+Vector3.new(3,0,0) end) end
 end})
-mkButton(tp, {title="Bring Target to Me", order=t(), cb=function()
+mkBtn(tpp,{title="Bring Target to Me",ord=t(),cb=function()
     if not S.target or not hrp then return end
-    local c=S.target.Character; local tH=c and c:FindFirstChild("HumanoidRootPart")
-    if tH then pcall(function() tH.CFrame=hrp.CFrame+Vector3.new(2,0,0) end) end
+    local th = getHRP()
+    if th then pcall(function() th.CFrame=hrp.CFrame+Vector3.new(2,0,0) end) end
 end})
 
--- ══════════════════════════════════════════════
--- DRAG  (title bar only, not sidebar or content)
--- ══════════════════════════════════════════════
+-- ═════════════════════════════════════════
+-- DRAG  —  global UIS (reliable on all executors + mobile)
+-- Header-only: check that position falls inside header bounds
+-- ═════════════════════════════════════════
 do
-    local drag=false; local tRef=nil; local sP=nil; local sW=nil
+    local drag=false; local startIn=nil; local startWin=nil
 
-    local function inCtrl(px)
-        local ax = titlebar.AbsolutePosition.X
-        local aw = titlebar.AbsoluteSize.X
-        return px > ax + aw - 62
+    local function inHeader(x, y)
+        local ap = header.AbsolutePosition
+        local az = header.AbsoluteSize
+        -- exclude right 60px (control buttons)
+        return x >= ap.X and x <= ap.X + az.X - 60
+           and y >= ap.Y and y <= ap.Y + az.Y
     end
 
-    titlebar.InputBegan:Connect(function(inp)
+    UIS.InputBegan:Connect(function(inp, gp)
+        if gp then return end   -- game processed = ignore
         local isT = inp.UserInputType == Enum.UserInputType.Touch
         local isM = inp.UserInputType == Enum.UserInputType.MouseButton1
         if not (isT or isM) then return end
-        if inCtrl(inp.Position.X) then return end
-        drag=true; tRef=inp
-        sP = Vector2.new(inp.Position.X, inp.Position.Y)
-        sW = Vector2.new(win.AbsolutePosition.X, win.AbsolutePosition.Y)
+        if not win.Visible then return end
+        if not inHeader(inp.Position.X, inp.Position.Y) then return end
+        drag    = true
+        startIn = Vector2.new(inp.Position.X, inp.Position.Y)
+        startWin = Vector2.new(win.AbsolutePosition.X, win.AbsolutePosition.Y)
     end)
 
     UIS.InputChanged:Connect(function(inp)
@@ -1587,132 +1361,104 @@ do
         local isT = inp.UserInputType == Enum.UserInputType.Touch
         local isM = inp.UserInputType == Enum.UserInputType.MouseMove
         if not (isT or isM) then return end
-        if isT and inp ~= tRef then return end
-        local d   = Vector2.new(inp.Position.X, inp.Position.Y) - sP
+        local d   = Vector2.new(inp.Position.X, inp.Position.Y) - startIn
         local vp2 = Cam.ViewportSize
         win.Position = UDim2.fromOffset(
-            math.clamp(sW.X + d.X, 0, vp2.X - WIN_W),
-            math.clamp(sW.Y + d.Y, 0, vp2.Y - WIN_H)
-        )
+            math.clamp(startWin.X + d.X, 0, vp2.X - W),
+            math.clamp(startWin.Y + d.Y, 0, vp2.Y - H))
     end)
 
     UIS.InputEnded:Connect(function(inp)
-        if inp == tRef or inp.UserInputType == Enum.UserInputType.MouseButton1 then
-            drag=false; tRef=nil
+        if inp.UserInputType == Enum.UserInputType.MouseButton1
+        or inp.UserInputType == Enum.UserInputType.Touch then
+            drag = false
         end
     end)
 end
 
--- ══════════════════════════════════════════════
--- FLOAT ICON  (appears when minimized)
--- ══════════════════════════════════════════════
+-- ═════════════════════════════════════════
+-- FLOAT ICON  (minimize → icon right-center)
+-- ═════════════════════════════════════════
 local floatF = Instance.new("Frame")
-floatF.Name               = "FloatIcon"
-floatF.Size               = UDim2.fromOffset(48, 48)
-floatF.BackgroundColor3   = Color3.fromRGB(10, 10, 13)
+floatF.Name               = "FI"
+floatF.Size               = UDim2.fromOffset(46, 46)
+floatF.BackgroundColor3   = C.header
 floatF.BackgroundTransparency = 0
 floatF.BorderSizePixel    = 0
 floatF.Visible            = false
-floatF.ZIndex             = 600
+floatF.ZIndex             = 500
 floatF.Parent             = root
-Instance.new("UICorner", floatF).CornerRadius = UDim.new(0, 10)
-
-local fiS = Instance.new("UIStroke", floatF)
-fiS.Color = K.white; fiS.Thickness = 1.3
+Instance.new("UICorner",floatF).CornerRadius = UDim.new(0,9)
+local fiS = Instance.new("UIStroke",floatF); fiS.Color=C.white; fiS.Thickness=1.2
 
 local fiImg = Instance.new("ImageLabel")
-fiImg.Size               = UDim2.fromOffset(42, 42)
-fiImg.Position           = UDim2.fromOffset(3, 3)
+fiImg.Size               = UDim2.fromOffset(38,38)
+fiImg.Position           = UDim2.fromOffset(4,4)
 fiImg.BackgroundTransparency = 1
-fiImg.Image              = ""
-fiImg.ZIndex             = 601
+fiImg.Image              = "rbxassetid://97269958324726"
+fiImg.ScaleType          = Enum.ScaleType.Crop
+fiImg.ZIndex             = 501
 fiImg.Parent             = floatF
-Instance.new("UICorner", fiImg).CornerRadius = UDim.new(0, 8)
-
-task.spawn(function()
-    pcall(function()
-        local img = Players:GetUserThumbnailAsync(
-            97269958324726,
-            Enum.ThumbnailType.HeadShot,
-            Enum.ThumbnailSize.Size150x150
-        )
-        fiImg.Image = img
-    end)
-end)
+Instance.new("UICorner",fiImg).CornerRadius = UDim.new(0,7)
 
 local function anchorFloat()
     local vp2 = Cam.ViewportSize
-    if vp2.X < 10 then vp2 = Vector2.new(800, 600) end
-    floatF.Position = UDim2.fromOffset(vp2.X - 60, math.floor(vp2.Y/2) - 24)
+    if vp2.X < 10 then vp2 = Vector2.new(800,600) end
+    floatF.Position = UDim2.fromOffset(vp2.X - 56, math.floor(vp2.Y/2) - 23)
 end
 anchorFloat()
 
-local fiBtn = Instance.new("TextButton")
-fiBtn.Size               = UDim2.fromScale(1, 1)
+local fiBtn = Instance.new("ImageButton")
+fiBtn.Size               = UDim2.fromScale(1,1)
 fiBtn.BackgroundTransparency = 1
-fiBtn.Text               = ""
+fiBtn.Image              = ""
 fiBtn.AutoButtonColor    = false
-fiBtn.Selectable         = false
-fiBtn.ZIndex             = 602
+fiBtn.ZIndex             = 502
 fiBtn.Parent             = floatF
-
 fiBtn.MouseButton1Click:Connect(function()
-    pcall(function() UIS:ReleaseFocus() end)
     floatF.Visible = false
     win.Visible    = true
-    minBtn.Text    = "−"
 end)
-
 fiBtn.MouseEnter:Connect(function()
-    TS:Create(floatF, TweenInfo.new(0.12), {
-        BackgroundColor3 = Color3.fromRGB(22, 22, 28)
-    }):Play()
+    TS:Create(floatF,TweenInfo.new(0.12),{BackgroundColor3=C.card}):Play()
 end)
 fiBtn.MouseLeave:Connect(function()
-    TS:Create(floatF, TweenInfo.new(0.12), {
-        BackgroundColor3 = Color3.fromRGB(10, 10, 13)
-    }):Play()
+    TS:Create(floatF,TweenInfo.new(0.12),{BackgroundColor3=C.header}):Play()
 end)
 
--- ══════════════════════════════════════════════
+-- ═════════════════════════════════════════
 -- MINIMIZE / CLOSE
--- ══════════════════════════════════════════════
+-- ═════════════════════════════════════════
 minBtn.MouseButton1Click:Connect(function()
-    pcall(function() UIS:ReleaseFocus() end)
-    win.Visible = false
+    win.Visible    = false
     anchorFloat()
     floatF.Visible = true
-    minBtn.Text    = "+"
 end)
-
 closeBtn.MouseButton1Click:Connect(function()
-    pcall(function() UIS:ReleaseFocus() end)
     pcall(function() root:Destroy() end)
-    pcall(function() Cam.CameraType = Enum.CameraType.Custom end)
+    pcall(function() Cam.CameraType=Enum.CameraType.Custom end)
 end)
 
--- ══════════════════════════════════════════════
+-- ═════════════════════════════════════════
 -- INIT
--- ══════════════════════════════════════════════
-setActive("AutoKill")
+-- ═════════════════════════════════════════
+setTab("Kill")
 
 task.spawn(function()
-    task.wait(1.8)
+    task.wait(1.5)
     pcall(function()
-        dispLbl.Text = LP.DisplayName
-        userLbl.Text = "@" .. LP.Name
+        dispL.Text = LP.DisplayName
+        userL.Text = "@"..LP.Name
     end)
 end)
 
 task.spawn(function()
-    task.wait(2.8)
+    task.wait(2.5)
     pcall(function()
-        SG:SetCore("SendNotification", {
-            Title    = "Anonymous9x TSB Strong",
-            Text     = "v5.0 Ready  |  All systems online",
-            Duration = 4,
+        SG:SetCore("SendNotification",{
+            Title="Anonymous9x TSB Strong",
+            Text="v6.0 Ready — All systems online",
+            Duration=4,
         })
     end)
 end)
-
--- END
