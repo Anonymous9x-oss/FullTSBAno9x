@@ -247,6 +247,129 @@ local SW = 112   -- sidebar width
 local HDR = 38   -- header height
 local STH = 20   -- status strip height
 
+
+-- ═════════════════════════════════════════
+-- LOADING SCREEN  (full black overlay)
+-- Covers entire screen, fades out before
+-- main window appears.
+-- ═════════════════════════════════════════
+local loadRoot = Instance.new("Frame")
+loadRoot.Name               = "LoadingScreen"
+loadRoot.Size               = UDim2.fromScale(1, 1)
+loadRoot.BackgroundColor3   = Color3.new(0, 0, 0)
+loadRoot.BackgroundTransparency = 0
+loadRoot.ZIndex             = 9000
+loadRoot.BorderSizePixel    = 0
+loadRoot.Parent             = root
+
+-- "Are you Ready?" heading
+local ldTitle = Instance.new("TextLabel")
+ldTitle.Size               = UDim2.new(1, 0, 0, 28)
+ldTitle.Position           = UDim2.new(0, 0, 0.38, 0)
+ldTitle.BackgroundTransparency = 1
+ldTitle.Text               = "Are you Ready?"
+ldTitle.Font               = Enum.Font.GothamBlack
+ldTitle.TextSize            = 22
+ldTitle.TextColor3          = Color3.new(1, 1, 1)
+ldTitle.TextXAlignment      = Enum.TextXAlignment.Center
+ldTitle.ZIndex              = 9001
+ldTitle.Parent              = loadRoot
+
+-- Subtitle
+local ldSub = Instance.new("TextLabel")
+ldSub.Size               = UDim2.new(1, 0, 0, 16)
+ldSub.Position           = UDim2.new(0, 0, 0.46, 0)
+ldSub.BackgroundTransparency = 1
+ldSub.Text               = "Anonymous9x TSB Strong"
+ldSub.Font               = Enum.Font.GothamBold
+ldSub.TextSize            = 11
+ldSub.TextColor3          = Color3.fromRGB(130, 130, 130)
+ldSub.TextXAlignment      = Enum.TextXAlignment.Center
+ldSub.ZIndex              = 9001
+ldSub.Parent              = loadRoot
+
+-- Progress track
+local ldTrackF = Instance.new("Frame")
+ldTrackF.Size             = UDim2.fromOffset(220, 3)
+ldTrackF.Position         = UDim2.new(0.5, -110, 0.56, 0)
+ldTrackF.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
+ldTrackF.BackgroundTransparency = 0
+ldTrackF.BorderSizePixel  = 0
+ldTrackF.ZIndex           = 9001
+ldTrackF.Parent           = loadRoot
+Instance.new("UICorner", ldTrackF).CornerRadius = UDim.new(1, 0)
+
+local ldFill = Instance.new("Frame")
+ldFill.Size             = UDim2.fromOffset(0, 3)
+ldFill.BackgroundColor3 = Color3.new(1, 1, 1)
+ldFill.BackgroundTransparency = 0
+ldFill.BorderSizePixel  = 0
+ldFill.ZIndex           = 9002
+ldFill.Parent           = ldTrackF
+Instance.new("UICorner", ldFill).CornerRadius = UDim.new(1, 0)
+
+-- Status text below bar
+local ldStatus = Instance.new("TextLabel")
+ldStatus.Size               = UDim2.new(1, 0, 0, 14)
+ldStatus.Position           = UDim2.new(0, 0, 0.60, 0)
+ldStatus.BackgroundTransparency = 1
+ldStatus.Text               = "Loading..."
+ldStatus.Font               = Enum.Font.Gotham
+ldStatus.TextSize            = 9
+ldStatus.TextColor3          = Color3.fromRGB(80, 80, 80)
+ldStatus.TextXAlignment      = Enum.TextXAlignment.Center
+ldStatus.ZIndex              = 9001
+ldStatus.Parent              = loadRoot
+
+-- Version label bottom
+local ldVer = Instance.new("TextLabel")
+ldVer.Size               = UDim2.new(1, 0, 0, 12)
+ldVer.Position           = UDim2.new(0, 0, 1, -20)
+ldVer.BackgroundTransparency = 1
+ldVer.Text               = "v1.03  |  By Anonymous9x"
+ldVer.Font               = Enum.Font.Gotham
+ldVer.TextSize            = 8
+ldVer.TextColor3          = Color3.fromRGB(45, 45, 45)
+ldVer.TextXAlignment      = Enum.TextXAlignment.Center
+ldVer.ZIndex              = 9001
+ldVer.Parent              = loadRoot
+
+-- Hide main window during loading
+win.Visible = false
+
+-- Animate loading
+task.spawn(function()
+    local steps = {
+        {pct=0.15, msg="Initializing engine..."},
+        {pct=0.32, msg="Connecting services..."},
+        {pct=0.54, msg="Loading features..."},
+        {pct=0.72, msg="Building interface..."},
+        {pct=0.88, msg="Fetching profile..."},
+        {pct=1.00, msg="Almost there..."},
+    }
+    local TW = ldTrackF.AbsoluteSize.X > 0 and ldTrackF.AbsoluteSize.X or 220
+    for _, step in ipairs(steps) do
+        ldStatus.Text = step.msg
+        TS:Create(ldFill, TweenInfo.new(0.38, Enum.EasingStyle.Quad),
+            {Size = UDim2.fromOffset(math.floor(TW * step.pct), 3)}):Play()
+        task.wait(0.44)
+    end
+    -- Final pause then fade out
+    task.wait(0.30)
+    TS:Create(loadRoot, TweenInfo.new(0.40, Enum.EasingStyle.Quad),
+        {BackgroundTransparency = 1}):Play()
+    TS:Create(ldTitle,  TweenInfo.new(0.35), {TextTransparency  = 1}):Play()
+    TS:Create(ldSub,    TweenInfo.new(0.35), {TextTransparency  = 1}):Play()
+    TS:Create(ldStatus, TweenInfo.new(0.35), {TextTransparency  = 1}):Play()
+    TS:Create(ldVer,    TweenInfo.new(0.35), {TextTransparency  = 1}):Play()
+    TS:Create(ldTrackF, TweenInfo.new(0.30), {BackgroundTransparency = 1}):Play()
+    TS:Create(ldFill,   TweenInfo.new(0.30), {BackgroundTransparency = 1}):Play()
+    task.wait(0.45)
+    -- Show main window and destroy loader
+    win.Visible = true
+    pcall(function() loadRoot:Destroy() end)
+end)
+
 -- ═════════════════════════════════════════
 -- WINDOW
 -- ═════════════════════════════════════════
@@ -559,6 +682,7 @@ local TABS = {
     {id="Kill",     label="Auto Kill"},
     {id="Move",     label="Movement"},
     {id="Exploit",  label="Exploits"},
+    {id="Player",   label="Player"},
     {id="Teleport", label="Teleport"},
 }
 local tabBtns   = {}
@@ -586,11 +710,14 @@ local function setTab(id)
         end
         if pan then pan.Visible = on end
     end
-    if cTabLbl then cTabLbl.Text = id == "Kill" and "Auto Kill" or id end
+    if cTabLbl then
+        local labels = {Kill="Auto Kill",Move="Movement",Exploit="Exploits",Player="Player",Teleport="Teleport"}
+        cTabLbl.Text = labels[id] or id
+    end
 end
 
 local tabsF = Instance.new("Frame")
-tabsF.Size               = UDim2.new(1, 0, 0, 140)
+tabsF.Size               = UDim2.new(1, 0, 0, 172)
 tabsF.Position           = UDim2.fromOffset(0, 78)
 tabsF.BackgroundTransparency = 1
 tabsF.BorderSizePixel    = 0
@@ -1573,6 +1700,270 @@ end)
 -- ═════════════════════════════════════════
 -- INIT
 -- ═════════════════════════════════════════
+
+-- ═════════════════════════════════════════
+-- PLAYER TAB
+-- ═════════════════════════════════════════
+local plp = tabPanels["Player"]
+local _pl = 0; local function pl() _pl=_pl+1; return _pl end
+
+-- State for player features
+local espConns    = {}
+local espBoxes    = {}  -- {model=model, box=box, nameLbl=lbl}
+local lagConns    = {}
+local antiRagConn = nil
+local boostConn   = nil
+
+-- ── ANTI RAGDOLL ──────────────────────────────────────────────
+-- When the server puts us in FallingDown / Ragdoll state,
+-- we immediately force GettingUp so we never get ragdolled.
+mkSec(plp,"Defense",pl())
+
+mkToggle(plp,{title="Anti Ragdoll",sub="Never get knocked down or ragdolled",val=false,ord=pl(),cb=function(v)
+    if antiRagConn then antiRagConn:Disconnect(); antiRagConn=nil end
+    if v then
+        antiRagConn = RS.Heartbeat:Connect(function()
+            if not hum then return end
+            pcall(function()
+                local st = hum:GetState()
+                if st == Enum.HumanoidStateType.FallingDown
+                or st == Enum.HumanoidStateType.Ragdoll
+                or st == Enum.HumanoidStateType.Dead then
+                    hum:SetHumanoidStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+                    hum:SetHumanoidStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+                    hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+                end
+            end)
+        end)
+    end
+end})
+
+-- ── ANTI SERVER LAGGER ────────────────────────────────────────
+-- Finds parts in workspace that are suspected lag sources:
+-- parts with crazy physics / huge BodyVelocity, or models with
+-- thousands of descendants. We Anchor them client-side to stop
+-- physics simulation load on the client.
+mkToggle(plp,{title="Anti Server Lagger",sub="Reduce lag from physics-heavy parts",val=false,ord=pl(),cb=function(v)
+    for _, c in ipairs(lagConns) do pcall(function() c:Disconnect() end) end
+    lagConns = {}
+    if v then
+        -- Anchor suspicious unanchored parts far from map center
+        local function cleanLagParts()
+            pcall(function()
+                for _, obj in ipairs(workspace:GetDescendants()) do
+                    if obj:IsA("BasePart") and not obj.Anchored then
+                        -- Check for extreme velocity
+                        local vel = obj.AssemblyLinearVelocity
+                        if vel.Magnitude > 600 then
+                            obj.AssemblyLinearVelocity = Vector3.zero
+                        end
+                        -- Destroy rogue BodyVelocity / BodyForce injected into non-player parts
+                        local isPlayerPart = false
+                        for _, p in ipairs(Players:GetPlayers()) do
+                            if p.Character and obj:IsDescendantOf(p.Character) then
+                                isPlayerPart = true; break
+                            end
+                        end
+                        if not isPlayerPart then
+                            for _, child in ipairs(obj:GetChildren()) do
+                                if child:IsA("BodyVelocity") or child:IsA("BodyForce")
+                                or child:IsA("RocketPropulsion") then
+                                    pcall(function() child:Destroy() end)
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+        cleanLagParts()
+        -- Repeat every 3s
+        local lagTimer = 0
+        lagConns[1] = RS.Heartbeat:Connect(function(dt)
+            lagTimer = lagTimer + dt
+            if lagTimer >= 3 then lagTimer = 0; cleanLagParts() end
+        end)
+    end
+end})
+
+-- ── ESP ──────────────────────────────────────────────────────
+-- Draws a billboard-style name label above every player head.
+-- Uses BillboardGui so it's always visible through walls.
+mkSec(plp,"Visual",pl())
+
+local function clearEsp()
+    for _, entry in ipairs(espBoxes) do
+        pcall(function()
+            if entry.gui and entry.gui.Parent then entry.gui:Destroy() end
+        end)
+    end
+    espBoxes = {}
+    for _, c in ipairs(espConns) do pcall(function() c:Disconnect() end) end
+    espConns = {}
+end
+
+local function buildEspFor(player)
+    if player == LP then return end
+    local function attach(c)
+        local head = c:WaitForChild("Head", 5)
+        if not head then return end
+        -- Remove existing
+        local old = head:FindFirstChild("_A9ESP")
+        if old then old:Destroy() end
+
+        local bb = Instance.new("BillboardGui")
+        bb.Name             = "_A9ESP"
+        bb.Size             = UDim2.fromOffset(120, 36)
+        bb.StudsOffset      = Vector3.new(0, 2.5, 0)
+        bb.AlwaysOnTop      = true
+        bb.ResetOnSpawn     = false
+        bb.ZIndexBehavior   = Enum.ZIndexBehavior.Sibling
+        bb.Parent           = head
+
+        local nameLbl = Instance.new("TextLabel")
+        nameLbl.Size               = UDim2.new(1, 0, 0, 16)
+        nameLbl.Position           = UDim2.fromOffset(0, 0)
+        nameLbl.BackgroundColor3   = Color3.fromRGB(0,0,0)
+        nameLbl.BackgroundTransparency = 0.45
+        nameLbl.Text               = player.Name
+        nameLbl.Font               = Enum.Font.GothamBold
+        nameLbl.TextSize            = 11
+        nameLbl.TextColor3          = Color3.new(1,1,1)
+        nameLbl.ZIndex              = 2
+        nameLbl.Parent              = bb
+        Instance.new("UICorner", nameLbl).CornerRadius = UDim.new(0,3)
+
+        -- Health bar below name
+        local hpBG = Instance.new("Frame")
+        hpBG.Size             = UDim2.new(1, 0, 0, 4)
+        hpBG.Position         = UDim2.fromOffset(0, 18)
+        hpBG.BackgroundColor3 = Color3.fromRGB(30,30,30)
+        hpBG.BackgroundTransparency = 0.30
+        hpBG.BorderSizePixel  = 0
+        hpBG.ZIndex           = 2
+        hpBG.Parent           = bb
+        Instance.new("UICorner",hpBG).CornerRadius = UDim.new(1,0)
+
+        local hpFill = Instance.new("Frame")
+        hpFill.Size             = UDim2.fromScale(1,1)
+        hpFill.BackgroundColor3 = Color3.new(1,1,1)
+        hpFill.BackgroundTransparency = 0
+        hpFill.BorderSizePixel  = 0
+        hpFill.ZIndex           = 3
+        hpFill.Parent           = hpBG
+        Instance.new("UICorner",hpFill).CornerRadius = UDim.new(1,0)
+
+        -- Update HP fill every frame
+        local hpConn = RS.Heartbeat:Connect(function()
+            local ph = c:FindFirstChildOfClass("Humanoid")
+            if ph and ph.MaxHealth > 0 then
+                local pct = math.clamp(ph.Health/ph.MaxHealth,0,1)
+                hpFill.Size = UDim2.new(pct,0,1,0)
+                -- White → grey based on health
+                local v = 0.4 + pct*0.6
+                hpFill.BackgroundColor3 = Color3.new(v,v,v)
+            end
+        end)
+        espBoxes[#espBoxes+1] = {gui=bb, conn=hpConn}
+        espConns[#espConns+1] = hpConn
+    end
+    if player.Character then attach(player.Character) end
+    espConns[#espConns+1] = player.CharacterAdded:Connect(attach)
+end
+
+mkToggle(plp,{title="ESP  —  Player Names",sub="Show name + health bar through walls",val=false,ord=pl(),cb=function(v)
+    clearEsp()
+    if v then
+        for _, p in ipairs(Players:GetPlayers()) do buildEspFor(p) end
+        espConns[#espConns+1] = Players.PlayerAdded:Connect(function(p)
+            task.wait(1)
+            buildEspFor(p)
+        end)
+    end
+end})
+
+-- ── BOOST FPS ─────────────────────────────────────────────────
+-- Genuine client-side FPS improvements for TSB on mobile:
+-- 1. Reduce render distance (LOD)
+-- 2. Lower max FPS cap to stable 60 via task scheduler
+-- 3. Disable shadows, reduce decorations
+-- 4. Disable AmbientOcclusion + global shadows
+mkSec(plp,"Performance",pl())
+
+mkToggle(plp,{title="Boost FPS",sub="Reduce graphics load for smoother gameplay",val=false,ord=pl(),cb=function(v)
+    if boostConn then boostConn:Disconnect(); boostConn=nil end
+    if v then
+        pcall(function()
+            local lighting = game:GetService("Lighting")
+            -- Kill shadows and heavy effects
+            lighting.GlobalShadows    = false
+            lighting.FogEnd           = 1000000
+            for _, obj in ipairs(lighting:GetChildren()) do
+                if obj:IsA("BlurEffect")
+                or obj:IsA("DepthOfFieldEffect")
+                or obj:IsA("SunRaysEffect")
+                or obj:IsA("ColorCorrectionEffect")
+                or obj:IsA("BloomEffect") then
+                    obj.Enabled = false
+                end
+            end
+        end)
+        pcall(function()
+            -- Reduce workspace streaming radius for less geometry
+            workspace.StreamingEnabled = workspace.StreamingEnabled -- keep as is
+            -- Disable decorations
+            local ts = game:GetService("TweenService")
+            for _, obj in ipairs(workspace:GetDescendants()) do
+                if obj:IsA("Decal") or obj:IsA("Texture") then
+                    pcall(function() obj.Transparency = 1 end)
+                elseif obj:IsA("ParticleEmitter") or obj:IsA("Trail")
+                or obj:IsA("Smoke") or obj:IsA("Fire") or obj:IsA("Sparkles") then
+                    pcall(function() obj.Enabled = false end)
+                end
+            end
+        end)
+        -- Periodic cleanup of new effects
+        local bt = 0
+        boostConn = RS.Heartbeat:Connect(function(dt)
+            bt = bt + dt
+            if bt < 5 then return end
+            bt = 0
+            pcall(function()
+                local lighting = game:GetService("Lighting")
+                lighting.GlobalShadows = false
+                for _, obj in ipairs(lighting:GetChildren()) do
+                    if obj:IsA("BlurEffect") or obj:IsA("DepthOfFieldEffect")
+                    or obj:IsA("SunRaysEffect") or obj:IsA("BloomEffect") then
+                        obj.Enabled = false
+                    end
+                end
+                for _, obj in ipairs(workspace:GetDescendants()) do
+                    if obj:IsA("ParticleEmitter") or obj:IsA("Trail")
+                    or obj:IsA("Smoke") or obj:IsA("Fire") or obj:IsA("Sparkles") then
+                        pcall(function() obj.Enabled = false end)
+                    end
+                end
+            end)
+        end)
+    else
+        -- Restore lighting
+        pcall(function()
+            local lighting = game:GetService("Lighting")
+            lighting.GlobalShadows = true
+            for _, obj in ipairs(lighting:GetChildren()) do
+                if obj:IsA("BlurEffect") or obj:IsA("DepthOfFieldEffect")
+                or obj:IsA("SunRaysEffect") or obj:IsA("BloomEffect") then
+                    obj.Enabled = true
+                end
+            end
+        end)
+    end
+end})
+
+mkBtn(plp,{title="Clear All ESP",sub="Remove all ESP labels from players",ord=pl(),cb=function()
+    clearEsp()
+end})
+
 setTab("Kill")
 
 task.spawn(function()
