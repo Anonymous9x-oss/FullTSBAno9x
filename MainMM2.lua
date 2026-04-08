@@ -1,6 +1,5 @@
 -- ═══════════════════════════════════════════
---   Ano9x TSB Strong  |  v3.1
---   Fix: Drag touch Delta, Close/Min btn
+--   Anonymous9x MM2  |  v1.02
 --   All Executor  |  Mobile + PC
 -- ═══════════════════════════════════════════
 
@@ -153,13 +152,13 @@ end
 
 local TitleL=Instance.new("TextLabel",HDR)
 TitleL.Size=UDim2.new(1,-110,1,0) TitleL.Position=UDim2.new(0,42,0,0)
-TitleL.BackgroundTransparency=1 TitleL.Text="Ano9x TSB Strong"
+TitleL.BackgroundTransparency=1 TitleL.Text="Anonymous9x MM2"
 TitleL.TextColor3=Color3.fromRGB(255,255,255) TitleL.Font=Enum.Font.GothamBold
 TitleL.TextSize=12 TitleL.TextXAlignment=Enum.TextXAlignment.Left TitleL.ZIndex=5
 
 local VerL=Instance.new("TextLabel",HDR)
 VerL.Size=UDim2.new(0,28,0,12) VerL.Position=UDim2.new(0,192,0.5,-6)
-VerL.BackgroundTransparency=1 VerL.Text="v3.1"
+VerL.BackgroundTransparency=1 VerL.Text="v1.02"
 VerL.TextColor3=Color3.fromRGB(65,65,65) VerL.Font=Enum.Font.Gotham VerL.TextSize=9 VerL.ZIndex=5
 
 -- ─── WINDOW BUTTONS (TextButton, ZIndex=10, large touch target) ─────
@@ -790,16 +789,131 @@ addButton(MISC,"Fling Sheriff / Hero",function()
     end end
     if not found then Notify("Fling Sheriff/Hero","No target found") end
 end)
-local _tgt=nil
-local _,_ddA=addDropdown(MISC,"Select Player",{},function(v) _tgt=v Notify("Target","Set: "..tostring(v)) end)
-local function refDrop()
-    local n={} for _,p in ipairs(Players:GetPlayers()) do if p~=LP then table.insert(n,p.Name) end end _ddA:Refresh(nil,n)
+-- ─── SELECT PLAYER: inline scrollable list ───────────────────────────────
+-- Section label
+local _selSecLbl = Instance.new("TextLabel", MISC.frame)
+_selSecLbl.Size=UDim2.new(0,ITEM_W,0,18) _selSecLbl.Position=UDim2.new(0,PAD_X,0,MISC.y)
+_selSecLbl.BackgroundTransparency=1 _selSecLbl.Text="SELECT PLAYER"
+_selSecLbl.TextColor3=Color3.fromRGB(65,65,65) _selSecLbl.Font=Enum.Font.GothamBold _selSecLbl.TextSize=9
+_selSecLbl.TextXAlignment=Enum.TextXAlignment.Left _selSecLbl.ZIndex=4
+MISC.y = MISC.y + 21
+
+-- Selected player display label
+local _selDisp = Instance.new("Frame", MISC.frame)
+_selDisp.Size=UDim2.new(0,ITEM_W,0,26) _selDisp.Position=UDim2.new(0,PAD_X,0,MISC.y)
+_selDisp.BackgroundColor3=Color3.fromRGB(18,18,18) _selDisp.BorderSizePixel=0 _selDisp.ZIndex=4
+Instance.new("UICorner",_selDisp).CornerRadius=UDim.new(0,6)
+local _selDispTxt = Instance.new("TextLabel",_selDisp)
+_selDispTxt.Size=UDim2.new(1,-10,1,0) _selDispTxt.Position=UDim2.new(0,10,0,0)
+_selDispTxt.BackgroundTransparency=1 _selDispTxt.Text="None selected"
+_selDispTxt.TextColor3=Color3.fromRGB(115,115,115) _selDispTxt.Font=Enum.Font.Gotham _selDispTxt.TextSize=10
+_selDispTxt.TextXAlignment=Enum.TextXAlignment.Left _selDispTxt.ZIndex=5
+MISC.y = MISC.y + 26 + 4
+
+-- Player list scroll container (fixed 120px height, manual canvas)
+local PLH = 120   -- player list box height
+local _plBox = Instance.new("Frame", MISC.frame)
+_plBox.Size=UDim2.new(0,ITEM_W,0,PLH) _plBox.Position=UDim2.new(0,PAD_X,0,MISC.y)
+_plBox.BackgroundColor3=Color3.fromRGB(15,15,15) _plBox.BorderSizePixel=0 _plBox.ZIndex=4 _plBox.ClipsDescendants=true
+Instance.new("UICorner",_plBox).CornerRadius=UDim.new(0,6)
+local _plStroke=Instance.new("UIStroke",_plBox) _plStroke.Color=Color3.fromRGB(32,32,32) _plStroke.Thickness=1
+
+local _plScroll = Instance.new("ScrollingFrame", _plBox)
+_plScroll.Size=UDim2.new(1,0,1,0) _plScroll.Position=UDim2.new(0,0,0,0)
+_plScroll.BackgroundTransparency=1 _plScroll.BorderSizePixel=0
+_plScroll.ScrollBarThickness=2 _plScroll.ScrollBarImageColor3=Color3.fromRGB(55,55,55)
+_plScroll.CanvasSize=UDim2.new(0,0,0,0) _plScroll.ElasticBehavior=Enum.ElasticBehavior.Never
+_plScroll.ZIndex=5 _plScroll.ClipsDescendants=true
+
+MISC.y = MISC.y + PLH + 4
+
+-- Refresh button
+local _refBtn = Instance.new("TextButton", MISC.frame)
+_refBtn.Size=UDim2.new(0,ITEM_W,0,26) _refBtn.Position=UDim2.new(0,PAD_X,0,MISC.y)
+_refBtn.BackgroundColor3=Color3.fromRGB(20,20,20) _refBtn.Text="Refresh Player List"
+_refBtn.TextColor3=Color3.fromRGB(170,170,170) _refBtn.Font=Enum.Font.Gotham _refBtn.TextSize=10
+_refBtn.BorderSizePixel=0 _refBtn.AutoButtonColor=false _refBtn.ZIndex=4
+Instance.new("UICorner",_refBtn).CornerRadius=UDim.new(0,6)
+local _refSt=Instance.new("UIStroke",_refBtn) _refSt.Color=Color3.fromRGB(38,38,38) _refSt.Thickness=1
+MISC.y = MISC.y + 26 + 4
+
+-- Player list builder (manual y, no UIListLayout)
+local _tgt = nil
+local _selBtns = {}
+local PLR_ITEM_H = 30
+
+local function buildPlayerList()
+    -- clear old buttons
+    for _, b in ipairs(_selBtns) do pcall(function() b:Destroy() end) end
+    _selBtns = {}
+
+    local py = 0
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LP then
+            local pb = Instance.new("TextButton", _plScroll)
+            pb.Size=UDim2.new(1,-4,0,PLR_ITEM_H) pb.Position=UDim2.new(0,2,0,py)
+            pb.BackgroundTransparency=1 pb.Text=p.Name
+            pb.TextColor3=Color3.fromRGB(185,185,185) pb.Font=Enum.Font.Gotham pb.TextSize=11
+            pb.TextXAlignment=Enum.TextXAlignment.Left pb.BorderSizePixel=0 pb.AutoButtonColor=false pb.ZIndex=6
+            -- left pad text
+            local pPad=Instance.new("UIPadding",pb) pPad.PaddingLeft=UDim.new(0,8)
+            -- selection highlight bar
+            local hiBar=Instance.new("Frame",pb) hiBar.Name="HiBar"
+            hiBar.Size=UDim2.new(0,2,0,18) hiBar.Position=UDim2.new(0,0,0.5,-9)
+            hiBar.BackgroundColor3=Color3.fromRGB(255,255,255) hiBar.BorderSizePixel=0 hiBar.Visible=false hiBar.ZIndex=7
+            Instance.new("UICorner",hiBar).CornerRadius=UDim.new(1,0)
+
+            pb.MouseButton1Click:Connect(function()
+                -- deselect all
+                for _,ob in ipairs(_selBtns) do
+                    pcall(function()
+                        ob.TextColor3=Color3.fromRGB(185,185,185)
+                        local h=ob:FindFirstChild("HiBar") if h then h.Visible=false end
+                    end)
+                end
+                -- select this
+                _tgt = p.Name
+                pb.TextColor3=Color3.fromRGB(255,255,255)
+                hiBar.Visible=true
+                _selDispTxt.Text=p.Name
+                _selDispTxt.TextColor3=Color3.fromRGB(230,230,230)
+                Notify("Target","Set: "..p.Name)
+            end)
+
+            -- keep current selection highlighted after rebuild
+            if p.Name == _tgt then
+                pb.TextColor3=Color3.fromRGB(255,255,255)
+                hiBar.Visible=true
+            end
+
+            table.insert(_selBtns, pb)
+            py = py + PLR_ITEM_H
+        end
+    end
+
+    _plScroll.CanvasSize = UDim2.new(0,0,0,py)
+
+    -- Update display if selected player left
+    if _tgt and not Players:FindFirstChild(_tgt) then
+        _tgt=nil _selDispTxt.Text="None selected" _selDispTxt.TextColor3=Color3.fromRGB(115,115,115)
+    end
 end
-refDrop()
-Players.PlayerAdded:Connect(function() task.wait(0.05) refDrop() end)
-Players.PlayerRemoving:Connect(function() task.wait(0.1) refDrop() end)
+
+buildPlayerList()
+
+_refBtn.MouseButton1Click:Connect(function()
+    TweenService:Create(_refBtn,TweenInfo.new(0.07),{BackgroundColor3=Color3.fromRGB(34,34,34)}):Play()
+    task.delay(0.12,function() TweenService:Create(_refBtn,TweenInfo.new(0.07),{BackgroundColor3=Color3.fromRGB(20,20,20)}):Play() end)
+    buildPlayerList()
+    Notify("Player List","Refreshed!")
+end)
+
+-- Real-time auto refresh
+Players.PlayerAdded:Connect(function() task.wait(0.1) buildPlayerList() end)
+Players.PlayerRemoving:Connect(function() task.wait(0.2) buildPlayerList() end)
 addButton(MISC,"Fling Selected Player",function()
-    if _tgt then local p=Players:FindFirstChild(_tgt)
+    if _tgt then
+        local p=Players:FindFirstChild(_tgt)
         if p and p~=LP then Notify("Fling","Flinging: ".._tgt) task.spawn(Fling,p)
         else Notify("Fling","Player not in game") end
     else Notify("Fling","Select a player first") end
@@ -900,26 +1014,48 @@ do
 end
 
 -- ════════════════════════════════════════════
---  MINIMIZE / CLOSE
+--  MINIMIZE / CLOSE  (smooth elastic animations)
 -- ════════════════════════════════════════════
+local _animating = false
+
 BMini.MouseButton1Click:Connect(function()
-    TweenService:Create(MF,TweenInfo.new(0.15,Enum.EasingStyle.Quad,Enum.EasingDirection.In),{Size=UDim2.new(0,UW,0,0)}):Play()
-    task.delay(0.16,function() MF.Visible=false MF.Size=UDim2.new(0,UW,0,UH) MinBtn.Visible=true end)
+    if _animating then return end _animating=true
+    -- Shrink down with Quart ease
+    TweenService:Create(MF, TweenInfo.new(0.22, Enum.EasingStyle.Quart, Enum.EasingDirection.In),
+        {Size=UDim2.new(0,UW,0,0), BackgroundTransparency=0.5}):Play()
+    task.delay(0.23, function()
+        MF.Visible=false
+        MF.Size=UDim2.new(0,UW,0,UH)
+        MF.BackgroundTransparency=0
+        MinBtn.Visible=true
+        _animating=false
+    end)
 end)
 
 MinBtn.MouseButton1Click:Connect(function()
-    MinBtn.Visible=false MF.Visible=true MF.Size=UDim2.new(0,UW,0,0)
-    TweenService:Create(MF,TweenInfo.new(0.18,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Size=UDim2.new(0,UW,0,UH)}):Play()
+    if _animating then return end _animating=true
+    MinBtn.Visible=false
+    MF.Visible=true
+    MF.Size=UDim2.new(0,UW,0,0)
+    MF.BackgroundTransparency=0.6
+    -- Grow open with Back elastic bounce
+    TweenService:Create(MF, TweenInfo.new(0.32, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+        {Size=UDim2.new(0,UW,0,UH), BackgroundTransparency=0}):Play()
+    task.delay(0.33, function() _animating=false end)
 end)
 
 BClose.MouseButton1Click:Connect(function()
-    TweenService:Create(MF,TweenInfo.new(0.14,Enum.EasingStyle.Quad,Enum.EasingDirection.In),{Size=UDim2.new(0,UW,0,0)}):Play()
-    task.delay(0.15,function() pcall(function() SG:Destroy() NF:Destroy() end) end)
+    if _animating then return end _animating=true
+    TweenService:Create(MF, TweenInfo.new(0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.In),
+        {Size=UDim2.new(0,UW,0,0), BackgroundTransparency=1}):Play()
+    task.delay(0.21, function()
+        pcall(function() SG:Destroy() NF:Destroy() end)
+    end)
 end)
 
 -- ════════════════════════════════════════════
 --  WELCOME
 -- ════════════════════════════════════════════
 task.delay(0.5,function()
-    Notify("Ano9x TSB Strong","Welcome, "..LP.DisplayName.."!")
+    Notify("Anonymous9x MM2","Welcome, "..LP.DisplayName.."!")
 end)
